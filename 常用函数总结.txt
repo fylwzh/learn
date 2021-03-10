@@ -1,0 +1,292 @@
+///////////////////////////////freeRTOS常用函数///////////////////////////////
+1.头文件
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+#include "queue.h"
+#include "timers.h"
+
+2.创建信号量
+SemaphoreHandle_t xHttpSem;
+xHttpSem = xSemaphoreCreateBinary(); //创建完默认为空
+xSemaphoreGive(xHttpSem);
+
+xSemaphoreTake(xHttpSem, portMAX_DELAY );  //有信号量返回1，没有等待或者返回0
+if(xSemaphoreTake(xHttpSem, portMAX_DELAY ))
+{
+	......
+}
+xSemaphoreGive(xHttpSem);
+
+BaseType_t xHigherPriorityTaskWorken;
+xSemaphoreGiveFromISR(pWUWins->xPlayOkSem, &xHigherPriorityTaskWorken);
+portYIELD_FROM_ISR(xHigherPriorityTaskWorken);
+
+xSemaphoreTakeFromISR(pWUWins->xPlayOkSem, &xHigherPriorityTaskWorken);
+portYIELD_FROM_ISR(xHigherPriorityTaskWorken);
+
+3.创建消息队列
+NodeMsg_t msg;
+QueueHandle_t xQueueHandle;
+xQueueHandle = xQueueCreate(uxQueueLength, sizeof(NodeMsg_t));
+xQueueSend(xQueueHandle, &msg, portMAX_DELAY);
+xQueueReceive(xQueueHandle, &msg, portMAX_DELAY); //有消息返回1，没有等待或者返回0
+if(xQueueReceive(xQueueHandle, &msg, portMAX_DELAY))
+{
+	if(msg.xxx == xxx) ....
+	......
+}
+
+4.创建软定时器（使用软定时器时回掉函数中不能有任务挂起的操作）
+TimerHandle_t WCTTimerHandle = NULL;
+#define 	WCTREQPERIOD	3000  //3S
+WCTTimerHandle = xTimerCreate("WCT", WCTREQPERIOD / portTICK_RATE_MS, pdTRUE, NULL, WctTimerCallBack);
+xTimerStart(xTimer, xTicksToWait);
+xTimerStop(xTimer, xTicksToWait);
+xTimerReset(xTimer, xTicksToWait);
+
+static void WctTimerCallBack(TimerHandle_t timer)
+{
+	WctTimerFlag = 1;
+}
+
+
+/////////////////////////////////lwip常用函数/////////////////////////////////////
+1.头文件
+#include "lwip/api.h"
+#include "sockets.h"
+
+2.创建TCP链接
+int32_t picoTcpConnect(const char* Ipaddr, uint32_t port)
+{
+	int32_t   hSocket = -1;
+	struct in_addr Haddr;
+	struct sockaddr_in sock_addr;
+	int32_t   ret = -1;
+	
+	inet_aton(Ipaddr,&Haddr); //将字符串地址转化为整数
+	hSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if(hSocket	< 0)
+	{
+		printf("socket create fail");
+	}
+	
+	sock_addr.sin_addr.s_addr = Haddr.s_addr;
+	sock_addr.sin_port = htons(port);
+	sock_addr.sin_family = AF_INET;
+	ret = connect(hSocket, (struct sockaddr *) &sock_addr, sizeof (struct sockaddr_in));
+	if(ret < 0)
+	{
+		printf("tcp connect fail!");
+		return -1;
+	}
+	return hSocket;
+}
+
+3.创建UDP链接
+int8_t udpPeerIp[20];
+struct sockaddr_in peerUdpAddr;
+int32_t udpPeerPort;
+int32_t   hUdpSocket = -1;
+	
+inet_aton((char *)udpPeerIp,&peerUdpAddr.sin_addr);
+peerUdpAddr.sin_port = htons(udpPeerPort);
+peerUdpAddr.sin_family = AF_INET;
+hUdpSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+sendto(hUdpSocket,pBuf,BufSize,0,(struct sockaddr *) &peerUdpAddr, sizeof (struct sockaddr_in));
+
+socklen_t sinrecvlen = sizeof(struct sockaddr_in);
+recvfrom(hUdpSocket,pBuf,BufSize,0,(struct sockaddr *) &peerUdpAddr, &sinrecvlen);
+
+printf("Receive IP:%s\r\n",(char *)inet_ntoa(sock_recvaddr.sin_addr));
+printf("Receive Port:%d\r\n",sock_recvaddr.sin_port);
+
+4.根据服务器名称获取IP地址
+netconn_gethostbyname(const char *name, struct ip_addr *addr);
+
+5.宏定义的使用
+typedef enum _METRIC_ID
+{
+#define  DEFINE_METRIC_ID(__id)   METRIC_ID_ ## __id,
+#include "metric-ids.h"
+#undef DEFINE_METRIC_ID
+    METRIC_ID_MAX
+} METRIC_ID;
+
+//"metric-ids.h"的内容如下
+DEFINE_METRIC_ID(ActionStart)
+DEFINE_METRIC_ID(agent_event)
+DEFINE_METRIC_ID(alarm_event)
+DEFINE_METRIC_ID(audio_dropped)
+DEFINE_METRIC_ID(audio_encoder_data)
+DEFINE_METRIC_ID(audio_encoder_flush)
+DEFINE_METRIC_ID(audio_encoder_init)
+
+6.#用来把参数转换成字符串
+#define P(A) printf("%s:%d\n",#A,A);
+#define SQUARE(x) printf("The square of "#x" is %d.\n", ((x)*(x)));
+
+P(2);
+SQUARE(2);
+运行结果如下：
+2:2
+The square of 2 is 4.
+
+7.##运算符可以用于宏函数的替换部分。这个运算符把两个语言符号组合成单个语言符号
+举例见第5条
+
+8. __VA_ARGS__ 是一个可变参数的宏，很少人知道这个宏，这个可变参数的宏是新的C99规范中新增的，目前似乎只有gcc支持
+实现思想就是宏定义中参数列表的最后一个参数为省略号（也就是三个点）。
+
+9.##__VA_ARGS__ 宏前面加上##的作用在于，当可变参数的个数为0时，这里的##起到把前面多余的","去掉的作用,否则会编译出错
+
+举例：
+#define my_print1(...)  printf(__VA_ARGS__)
+#define my_print2(fmt,...)  printf(fmt,__VA_ARGS__)  
+#define my_print3(fmt,...)  printf(fmt,##__VA_ARGS__) 
+
+10.C语言可变参数使用介绍
+这就要用到处理变参的三个方法：va_start, va_arg, va_end , 这三个方法包含在头文件 stdarg.h 中，这三个方法的原型为：
+	va_list ap;//首先定义一个va_list类型的变量
+	void va_start(va_list ap, last);  //va_start的第一个参数为va_list变量，第二个参数为函数的最后一个固定参数 
+	void va_end(va_list ap);           //用va_end结束迭代, ap is undefined
+	type va_arg(va_list ap, type);
+
+例如：
+#define _CRT_SECURE_NO_WARNINGS
+#include <stdio.h>
+#include <stdarg.h>
+ 
+void sumq(char *fmt , ...)
+{
+	va_list args;
+	va_start(args , fmt);//va_start 的第一个参数为va_list变量，第二个参数为函数的最后一个固定参数
+	char buff[1024];
+	vsnprintf(buff, 1023 , fmt , args);
+	printf("%s\n",buff);
+	va_end(args);
+}
+int main()
+{
+   	int age = 78;
+	sumq("hello world");
+	sumq("hello %d",2345);
+	sumq("hellomyageis:""%d yearsols",age);
+	return 0;
+}
+
+11.0长度数组
+定长数组使用方便, 但是却浪费空间, 指针形式只多使用了一个指针的空间, 不会造成大量空间分浪费, 但是使用起来需要多次分配, 多次释放, 那么有没有一种实现方式能够既不浪费空间, 又使用方便的呢?
+
+//  0长度数组
+struct zero_buffer
+{
+    int     len;
+    char    data[0];
+};
+
+开辟空间
+那么我们使用的时候, 只需要开辟一次空间即可
+
+    ///  开辟
+    if ((zbuffer = (struct zero_buffer *)malloc(sizeof(struct zero_buffer) + sizeof(char) * CURR_LENGTH)) != NULL)
+    {
+        zbuffer->len = CURR_LENGTH;
+        memcpy(zbuffer->data, "Hello World", CURR_LENGTH);
+        printf("%d, %s\n", zbuffer->len, zbuffer->data);
+    }
+
+释放空间
+释放空间也是一样的, 一次释放即可
+
+    ///  销毁
+    free(zbuffer);
+    zbuffer = NULL;
+
+12.获取系统时间计数值
+	TickType_t xTaskGetTickCount( void )
+	TickType_t xTaskGetTickCountFromISR( void )
+
+13.宏定义条件编译
+	#define LWIP_DHCP                       1
+	#define DHCP_DOES_ARP_CHECK             0
+	
+	#if (LWIP_DHCP && DHCP_DOES_ARP_CHECK)
+	#if (!LWIP_DHCP)
+
+14.setjmp() 和  longjmp()
+	#include <setjmp.h>
+	#include <stdio.h>
+
+	jmp_buf j;	//j变量用于存储现场
+
+	void raise_exception(void)
+	{
+		printf("exception raised\n");
+		longjmp(j, 3); 	//跳转到存储j处的 setjmp(j)，同时让setjmp(j)返回3
+		printf("this line should never appear\n");
+	}
+
+	int main(void)
+	{
+		switch (setjmp(j)) //第一次调用是保存现场到j中，同时返回0
+		{
+			case 0:
+			printf("''setjmp'' is initializing ''j''\n");
+			raise_exception();
+			printf("this line should never appear\n");
+			case 1:
+			printf("Case 1\n");break;
+			case 2:
+			printf("Case 2\n");break;
+			case 3:
+			printf("Case 3\n");break;
+			default:
+			break;
+		}
+		return 0;
+	}
+　　最终的输出结果如下所示：
+	''setjmp'' is initializing ''j''
+	exception raised
+	Case 3
+
+15.prinft打印指定长度 
+	printf("%.*s\n", 10, s);//这里的常量10就是给*号的,你也可以用一个变量来控制宽度
+	printf("%*.*s\n", 20, 10, s);//常量20控制输出所占位宽，也可以用一个变量控制
+	
+16.哈希计算，根据字符串获取整形值（著名的ELFhash算法）
+	int ELFhash(char*key)
+	{
+		unsigned long h=0;
+		while(*key)
+		{
+			h = (h << 4) + *key++;
+			unsigned long g = h & 0xF0000000L;
+			if(g)
+				h ^= g >> 24;
+			h &= ~g;
+		}
+		return h % MOD;
+	}
+
+17.
+taskENTER_CRITICAL();
+taskEXIT_CRITICAL();
+
+18.结构体的位定义
+
+	typedef struct ST_TEST
+	{
+		unsigned char	ucA:1;
+		unsigned char	ucB:1;
+		unsigned char	ucC:1;
+		unsigned char	ucD:1;
+		unsigned char	ucE:1;
+		unsigned char	ucF:1;
+		unsigned char	ucG:1;
+		unsigned char	ucH:1;
+	}
+	stTest.ucA = 1;stTest.ucB = 0;stTest.ucC = 0;stTest.ucD = 0;stTest.ucE = 0;stTest.ucF = 0;stTest.ucG = 1;
+	结果是0x41，也就是二进制的0b01000001.可见，定义在一开头的ucA反而落到了最后，而倒数第二的ucG起始在左起正数第二。所以，结构体里定义比特，次序起始是反的。
