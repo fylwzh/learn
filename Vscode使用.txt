@@ -1,0 +1,452 @@
+VSCode开发环境配置：
+1.vscode配置c_cpp_properties.json   输入：edit config
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "__ICCARM__",
+                "DEBUG",
+                "__REDLIB__",
+                "SKIP_SYSCLK_INIT",
+                "XIP_EXTERNAL_FLASH=1",
+                "XIP_BOOT_HEADER_ENABLE=1",
+                "CPU_MIMXRT1062DVL6A",
+                "HIGH_SPEED_SDIO_CLOCK",
+                "PRINTF_ADVANCED_ENABLE=1",
+                "LWIP_NETIF_API=1",
+                "FSL_RTOS_FREE_RTOS",
+                "FREERTOS",
+                "SDK_DEBUGCONSOLE=1",
+                "CR_INTEGER_PRINTF",
+                "PRINTF_FLOAT_ENABLE=0",
+                "CPU_IS_ARM_CORTEX_M7=1",
+                "MIMXRT1062",
+                "FREESCALE_KSDK_BM",
+                "MBEDTLS_CONFIG_FILE=\"port/rt_mbedtls_config.h\"",
+                "FSL_SDK_DRIVER_QUICK_ACCESS_ENABLE=1",
+                "CONFIG_KEY_REVOKE_SUPPORT_X",
+                "CONFIG_RT_ECCHIP_SUPPORT",
+                "USE_SEST",
+                "BL2_API_EXIST=0",
+                "DEBUG_QSPI"
+            ],
+            "intelliSenseMode": "msvc-x64"
+        }
+    ],
+    "version": 4
+}
+
+2.配置滚轮放大：齿轮->settings，
+	搜索ctrl，可以看到 Editor:Mouse Wheeel Zoom
+
+3.配置快捷键：齿轮->Keyboard Shortcuts，
+	搜索comment，更改：Toggle Block comment为alt+a
+	更改：Toggle Line comment为alt+s
+
+4.配置成中文：输入指令：configure display language可以切换语言
+	在插件中搜索：Chinese(Simplified) Language Pack for Visual Studio Code
+	安装插件   
+	
+5.配置用户片段：齿轮->user snipets
+{
+	"c file header": {
+		"prefix": "cheader",
+		"body": [
+			"/*",
+			"* @copyright Copyright 2020 Honeywell International Inc. All rights reserved.",
+			"* @file    $TM_FILENAME",
+			"* @author  Yanlei Fu",
+			"* @date    $CURRENT_YEAR-$CURRENT_MONTH-$CURRENT_DATE",
+			"* @brief   ",
+			"*/",
+			"",
+		],
+		"description": "add c file header"
+	},
+	"h file header": {
+	   "prefix": "hheader",
+	   "body": [
+			"/*",
+			"* @copyright Copyright 2020 Honeywell International Inc. All rights reserved.",
+			"* @file    $TM_FILENAME",
+			"* @author  Yanlei Fu",
+			"* @date    $CURRENT_YEAR-$CURRENT_MONTH-$CURRENT_DATE",
+			"* @brief   ",
+			"*/",
+			"",
+			"#ifndef ${1:${TM_FILENAME_BASE/(.*)/_${1:/upcase}_H/i}}",
+			"#define $1 ",
+			"",
+			"#endif // __$1_h__", 
+			"",
+
+	   ],
+	   "description": "Log output to console"
+   },
+}
+
+6.python调试时的路径配置问题
+	{
+		// Use IntelliSense to learn about possible attributes.
+		// Hover to view descriptions of existing attributes.
+		// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+		"version": "0.2.0",
+		"configurations": [
+			{
+				"name": "Python: Current File",
+				"type": "python",
+				"request": "launch",
+				"program": "${file}",
+				"console": "integratedTerminal",
+				"cwd": "${fileDirname}"
+			}
+		]
+	}
+	在Python中按F5执行py文件时，默认是从当前打开的文件夹目录为执行路径。如果main入口在文件夹顶层还好，如果在子文件夹就会有些问题，比如相对路径导入模块时会报错。
+
+honeywell本地版本管理搭建步骤：
+
+	1.下载git(Git-2.28.0-64-bit)并按照默认安装，之后打开git bash作如下设置：
+		git config --global user.name "用户名"
+		git config --global user.email 邮箱
+		
+	2.会有两个问题
+		设置Git缓存值大小  git config http.postBuffer 524288000
+			表示设置为5G：
+			sudo git config --global http.postBuffer 5242880000
+			sudo git config --global https.postBuffer 5242880000
+			git config --list 查看设置值
+		Filename too long unable to checkout working tree warning: Clone succeeded, but checkout failed. 
+			git config --system core.longpaths true
+			
+			git config --global core.longpaths true
+
+	3.进入本地存放工程的目录下，在该目录下打开 git bash，使用git clone 地址    下载远程服务器上的代码(如下：)
+		H414136@CH3KLTGWTLL13 MINGW64 /c/1_work/1_work/1_project/6_GitWorkSpace/1_Nordic_SDK
+		$ git clone https://bitbucket.honeywell.com/scm/shwe/global_wireless_platform_sdk.git
+			Cloning into 'global_wireless_platform_sdk'...
+			remote: Enumerating objects: 31545, done.
+			remote: Counting objects: 100% (31545/31545), done.
+			remote: Compressing objects: 100% (14847/14847), done.
+			remote: Total 31545 (delta 16107), reused 28829 (delta 14307)
+			Receiving objects: 100% (31545/31545), 208.63 MiB | 1.98 MiB/s, done.
+			Resolving deltas: 100% (16107/16107), done.
+			Updating files: 100% (25110/25110), done.
+
+	4.下载完成后进入下载的目录下，输入指令  code .     用vscode打开这个目录即可
+		H414136@CH3KLTGWTLL13 MINGW64 /c/1_work/1_work/1_project/6_GitWorkSpace/1_Nordic_SDK
+		$ ls
+		global_wireless_platform_sdk/
+
+		H414136@CH3KLTGWTLL13 MINGW64 /c/1_work/1_work/1_project/6_GitWorkSpace/1_Nordic_SDK
+		$ cd global_wireless_platform_sdk/
+
+		H414136@CH3KLTGWTLL13 MINGW64 /c/1_work/1_work/1_project/6_GitWorkSpace/1_Nordic_SDK/global_wireless_platform_sdk (GWP_Dev)
+		$ code .
+
+	注意：使用vscode切换分支后使用IAR打开代码对应不同的分支
+
+   
+
+VScode搭建Git环境
+1.安装Git，完全默认安装
+2.打开 Git bash， 配置用户名和邮箱
+	git config --global user.name "用户名"
+	git config --global user.email 邮箱
+3.进入用户目录，在Git bash中输入 cd ~
+4.输入： ssh-keygen -t rsa  一路按回车，会在用户目录下生成.ssh目录，在该目录下存放生成的密钥对，公钥为 .pub
+5.复制公钥文件中的内容，将公钥信息填写到Github中，连接如下 https://github.com/settings/keys
+6.输入： eval $(ssh-agent -s)
+  输入： ssh-add ~/.ssh/id_rsa
+  最后输入：ssh -T git@github.com  
+  如果返回：Hi xxxx! You've successfully authenticated, but GitHub does not provide shell access.则表示成功
+  
+  参考连接：https://docs.github.com/en/developers/overview/using-ssh-agent-forwarding#troubleshooting-ssh-agent-forwarding
+  https://docs.github.com/en/github/authenticating-to-github/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent
+
+7.Git常用本地指令
+	git init
+		初始化本地仓库
+	git status
+		查看当前git状态
+	git add
+		将未跟踪文件拉入跟踪
+		将修改后的文件加入暂存区
+		将冲突文件标记为冲突已解决
+	git commit
+		将放在暂存区的修改进行提交
+	git restore
+		取消对一个文件的修改
+	git diff
+		查看修改哪些地方做了删除，哪些地方做了新增
+	git checkout
+		用来切换分支
+	git branch
+		新建分支
+	git merge
+		合并其他分支的代码，在合并时需要手动解决冲突
+	git stash
+		临时保存当前的工作分支
+8.Git常用远程指令
+	git clone
+		用于克隆一个远程仓库代码
+	git pull
+		用于拉取远程分支的更新，并将更新合并到本地分支
+	git push
+		用于将本地分支的commit提交到远程分支
+	
+Git指令操作与VScode操作对比
+1.初始化一个仓库
+	首先新建一个文件夹作为仓库
+	cmd：
+	进入新建的目录下，输入指令 git init，会在当前目录下生成一个.git文件夹
+	
+	VScode：
+	点击左侧切换到源代码管理
+	点击顶部的 + （初始化存储库）
+	选择用于初始化Git存储库的工作区文件夹
+	
+2.	常用本地git指令介绍(阿汤15讲)
+	在目录下新建一个README.md(只是用来熟悉操作不是必须)
+	cmd：
+	a.	touch README.md
+		git status  			查看当前git状态为Untracked
+	b. 	git add README.md   	将文件拉入跟踪
+		git status -s  			查看当前文件状态为 A 表示加入了暂存区
+	c.	git commit -m "注释"	将修改进行提交
+	d.	使用vim修改README.md中的内容后可使用    git restore 文件名      撤销修改内容，输入这个指令后可以看到刚才添加的内容已经撤销
+	e.	git commit -am "注释"     可同时完成add以及commit
+	f.	git branch -l		查看当前分支有哪些，其中有*号的分支表示当前分支
+	g.  git branch 分支名称			创建分支
+		git check out 分支名称		切换分支
+		git branch -b 分支名称		创建并切换分支
+	h.	在新建的分支branch1中修改README.md中的内容，更改完成后做一次快速提交，切换到master分支中修改README.md中的内容，更改完成后做一次快速提交
+		git merge 分支名称（branch1）			将新建分支合并到master分支
+		此时会产生冲突
+			$ git merge branch1
+			Auto-merging README.md
+			CONFLICT (content): Merge conflict in README.md
+			Automatic merge failed; fix conflicts and then commit the result.
+		可以打印输出README.md
+			$ cat README.md
+			@@@@
+			<<<<<<< HEAD					表示冲突的开始
+			aaaa							master分支中的内容
+			=======							分隔符
+			Aaaa							branch1分支中的内容
+			>>>>>>> branch1					冲突结束
+	i.	解决冲突
+		在master分支中，打开冲突文件README.md，手动进行修改后保存
+		输入 git add README.md		告诉git冲突解决
+		git commit -m “注释”		提交内容
+	j.	git stash 指令，在工作过程中在自己的分支上进行操作，但是突然有紧急情况需要切换到另一个分支去解决一些bug，
+		当前工作还没有完成，不能commit，因为commit通常是提交一些完成的工作，一次commit会产生一次记录，容易造成误解，
+		但是又不能在当前工作完成一半就去切换到另一个分支，此时就需要输入  git stash 指令，来临时存储当前分支的工作
+		状态，可以切换到其他的分支，在bug解决后在切回当前分支输入 git stash pop  回复之前的工作状态。
+	k.	修改README.md中的内容并保存，通过 git diff README.md可以查看修改了哪些内容
+		
+		
+	
+	VScode:
+	a.	在vscode中新建一个README.md的文件，新文件显示为 U 表示为Untracked
+	b.	源代码管理中，找到修改的文件，点击文件上的 + 则可完成add操作，文件状态变成 A 
+	c.	源代码管理中，在消息中输入提交的注释，点击√或者使用快捷方式 Ctrl+Enter进行提交
+	d.	在VScode中修改README.md文件，在源代码管理中点击这个文件上的 放弃更改  图标即可撤回修改的内容
+	e.	在vscode中如果修改文件后直接提交会弹出提示“没有可提交的暂存更改”，如果选择总是，则下次可直接将修改进行快捷提交，即：同时完成add以及commit
+	f.	在vscode界面底部状态栏中显示了当前的分支
+	g.	点击界面底部状态栏的分支，选择正在创建新分支，输入分支名称回车即可，通过点击状态栏分支进行分支切换
+	h.	切换到新建的branch1分支上，修改README.md文件内容，并提交
+		切换到master分支上，同样修改README.md文件内容，并提交
+		点击界面左下的⚙图标，调出comman palette（或使用 Ctrl + shift + p方式调出）
+		在弹出的窗口中输入：git merge后点击合并分支，然后选择要合并的分支branch1
+		此时会产生冲突
+		####aaaa
+		<<<<<<< HEAD
+		aaaa
+		=======
+		AAAA
+		>>>>>>> branch1
+	i.	解决冲突
+		在冲突文件中会有四个解决冲突的选项
+			采用当前更改
+			采用传入的更改
+			保留双方的更改
+			比较更改（会在两个窗口打开文件）
+		在手动解决冲突后，保存文件，此时文件状态为 C 表示conflict
+		点击文件上的➕，将文件标记为冲突已解决，之后进行提交
+	j.	stash  在vscode 源代码管理中 中，点击左上方的 ... 会有很多选项，
+		其中 存储 即 stash
+		其中 弹出存储... 即 pop stash
+	k.	在vskode中，通过查看文本编辑器左侧行号的边上的颜色可以知道当前文件做了哪些修改
+		红色表示有删除操作
+		绿色表示有添加操作
+		蓝色表示有修改操作
+		
+3.	常用远程git指令介绍(阿汤16讲)
+	远程仓库使用github，在github上新建一个organization，在这个organization中新建两个仓库boo-cli  boo-vscode 
+	
+	cmd：
+	a.	进入github的boo-cli仓库，可以查看这个仓库的ssh地址：git@github.com:VscodeLearn/boo-cli.git
+		使用命令行进入要存贮这个仓库的目录下，输入：git clone git@github.com:VscodeLearn/boo-cli.git
+		克隆完毕后，进入克隆下来的目录 boo-cli
+		输入ls -al 可以查看这个目录下有一个.git目录
+	b.	git push的使用
+		进入到仓库所在目录，在目录中新建两个文件，touch README.md Doc.md 
+		将两个文件拉入暂存区： git add .
+		提交： git commit "注释"
+		提交到远程仓库： git push 
+		在github上可以看到新提交的两个文件
+	c.	git pull的使用
+		首先在远程github上对文件README.md的内容进行修改并提交
+		在工作目录下输入： git pull 		拉取远程更新
+		待完成后即可看到更新
+		
+		
+	
+	vscode：
+	a.	进入github的boo-vscode仓库，可以查看这个仓库的ssh地址：git@github.com:VscodeLearn/boo-vscode.git
+		打开vscode，调出comman palette(或使用Ctrl + shift + p)
+		输入命令：git clone 
+		点击查找的git clone命令，输入地址：git@github.com:VscodeLearn/boo-vscode.git
+		选择仓库存贮的位置，克隆完成后vscode会提示是否打开，选择打开即可
+	b.	git push的使用
+		在vscode上新建两个文件：README.md Doc.md 
+		在两个文件上点击 ➕ 暂存两个文件
+		填写好注释后选择 √ 提交两个文件
+		源代码管理中点击左上的 ...  选择 推送（push）
+		通过查看底部的状态栏可以知道状态是否完成
+		完成后在github上可以看到新提交的两个文件
+	c.	git pull的使用
+		首先在远程github上对文件README.md的内容进行修改并提交
+		源代码管理中点击左上的 ...  选择 拉取（pull）
+		通过查看底部的状态栏可以知道状态是否完成
+		完成后可以看到README.md的内容改变
+		注意：	在实际工作时，在push之前通常要先进行pull操作，保证本地仓库与远端仓库的一致，之后在使用push更新远程仓库
+				在vscode中，源代码管理中点击左上的 ...  选择 同步（Sync），就相当于 git pull + git push
+				
+4.vscode版本管理的不足：缺少对commit记录的查看	 缺少对远程仓库信息的提示
+	可以通过增加扩展来解决这个问题
+				
+VScode调试工具的介绍(阿汤17讲)
+1.需要满足条件
+	搭建相应语言的开发环境
+	安装相应语言用于调试的扩展
+	配置launch.json
+略......
+	
+	
+VScode扩展管理
+1.扩展的分类
+	写代码相关
+		开发.net core 的C#
+		格式化代码的 prettier
+		调试PHP代码的PHP debug
+	工具
+		管理Docker 的 “Dcoker”
+		远程开发的 remote ssh
+		远程协作的 live share
+	自定义相关
+		主题  语言包  快捷键
+2.扩展的安装目录
+	用户目录\.vscode\extensions
+	
+Settings
+	vscode中的settings分为User和Workspace
+	User: 		满足个性化设置   					作用于所有项目
+	Workspace: 	常用于团队协作时保持代码风格统一   	与用于单个项目
+	
+	User模式下：Settings的所有设置存放在settings.json中，在comman palette命令窗口中输入 settings 选择打开settings（json）即可
+	这个文件存放在用户目录下，保存修改过的settings配置，删除某一项，即可让该选项回复默认设置
+	
+	WorkSpace模式下：Settings的所有设置存放在当前目录下的.vscode目录下的setting.json中
+		
+用户代码片段
+	"examp1": {
+	 	"prefix": "aaa",
+	 	"body": [
+	 		"console.log('$1');",
+	 		"$2"
+	 	],
+	 	"description": "Log output to console"
+	 },
+	 "print": {
+		"prefix": "ppp",
+		"body": [
+			"printf(\"%$1\",$2)",
+		],
+		"description": "Log output to console"
+	},
+	"print1": {
+		"prefix": "p1",
+		"body": [
+			"printf(\"%${1:you can use d, c, s, f}\",$2)",
+		],
+		"description": "Log output to console"
+	},
+	"print2": {
+		"prefix": "p2",
+		"body": [
+			"printf(\"%${1|d,c,s,f|}\",$2)",
+		],
+		"description": "Log output to console"
+	}
+	
+	常用：$0 表示光标所在位置  $1  $2 等表示光标跳转位置的顺序，使用tab进行跳转
+	这个json代码可使用 snippet generator工具生成
+	https://snippet-generator.app/
+	$BLOCK_COMMENT_START
+	$BLOCK_COMMENT_END
+	$CURRENT_YEAR
+	$CURRENT_MONTH
+	$CURRENT_DATE
+	更多变量查看官方文档(在vscode的帮助下打开)：
+	https://code.visualstudio.com/docs/editor/userdefinedsnippets
+
+扩展编辑区
+	使用 ctrl + B 隐藏或打开 side bar	
+	使用 查看->显示缩略图  来隐藏或打开缩略图
+	
+zen mode ：排除干扰专注于写代码(zen:禅)
+	zenmode打开方法：
+		a.view->Appearance->zenmode
+		b.command palette: 输入zm
+		c.ctrl+k z
+		
+panels的使用(主要讲解 terminal)
+	打开方法：
+		terminal-> new terminal
+		
+	terminal：一个工具，负责提供命令的输入输出环境，以及切换shell的功能。
+
+	在terminal中可以选择使用哪个shell,默认使用powershell，切换完成后需要重新打开terminal
+	
+状态栏
+	显示当前文件的一些信息
+	可以为临时文件指定类型，让当前文件以指定的类型进行显示
+	
+	
+	
+git 常用指令：
+	git fetch origin feature/SGP-4343-rt-complete-the-bring-up-of-rtmedvs-option1
+	在vscode中只要选中远程分支即可自动创建本地分支？？？？？
+	
+	拉远程分支到本地：
+		git fetch origin dev（dev为远程仓库的分支名）
+		git checkout -b dev(本地分支名称) origin/dev(远程分支名称)
+		git pull origin dev(远程分支名称)
+	查看本地和远程的跟踪关系
+		git branch -vv
+			feature/SGP-3979-rt-uart-rs232-rs485-function-verification   f9cd8bae [origin/feature/SGP-3979-rt-uart-rs232-rs485-function-verification] Pull request #46: [IOTRT-96]coding the driver of touch IC;coding the driver of LCD;Improve the flash stress test code.
+			feature/SGP-4343-rt-complete-the-bring-up-of-rtmedvs-option1 f9cd8bae [origin/feature/SGP-4343-rt-complete-the-bring-up-of-rtmedvs-option1] Pull request #46: [IOTRT-96]coding the driver of touch IC;coding the driver of LCD;Improve the flash stress test code.
+			srtd-dev                                                     150e02a6 [origin/srtd-dev] Pull request #40: [IOTRT-85]Modify the code according to the new two way authentication protocol.
+	修改远程跟踪分支
+		git branch --set-upstream-to=origin/remoteBranchName localBranchName
+	
+	
