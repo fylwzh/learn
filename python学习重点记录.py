@@ -44,6 +44,8 @@
     temp_dict = {"height": 1.75,
                 "age": 20}
     xiaoming_dict.update(temp_dict)       #字典的合并 如果被合并的字典中包含已经存在的键值对，会覆盖原有的键值对
+    for key,value in xiaoming_dict.items():
+        
 
 #字符串的使用
     hello_str = "hello hello"
@@ -54,6 +56,9 @@
     hello_str.replace("world", "python")
     hello_str.split()
     result = " ".join(hello_str)     
+    udp_socket.sendto(hello_str.encode("utf-8"), ("192.168.33.53", 8080))
+    b"hello hello"  #用字节表示这个字符串
+    r"hello .*hello" #用到的一些符号代表正则匹配符，不用使用转义字符直接按照匹配符使用
 
 #函数传递参数的拆包
     gl_nums = (1, 2, 3)
@@ -202,7 +207,145 @@
         (?P<name>)	分组起别名
         (?P=name)	引用别名为name分组匹配到的字符串
     """
+    import re
     ret = re.match("\w{4,20}@(163|126|qq)\.com", "test@qq.com")
     print(ret.group())  # test@qq.com
 
-#git test
+    ret = re.findall(r"\d+", "python = 9999, c = 7890, c++ = 12345")
+    运行结果：['9999', '7890', '12345']
+
+#http协议实例
+    浏览器---->服务器发送的请求格式如下：
+	GET / HTTP/1.1
+	Host: 127.0.0.1:8080
+	Connection: keep-alive
+	Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8
+	Upgrade-Insecure-Requests: 1
+	User-Agent: Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.75 Safari/537.36
+	Accept-Encoding: gzip, deflate, sdch
+	Accept-Language: zh-CN,zh;q=0.8
+
+    服务器--->浏览器回送的数据格式如下:
+	HTTP/1.1 200 OK
+	Bdpagetype: 1
+	Bdqid: 0xe87cb3f700023783
+	Bduserid: 0
+	Cache-Control: private
+	Connection: Keep-Alive
+	Content-Encoding: gzip
+	Content-Type: text/html; charset=utf-8
+	Cxy_all: baidu+55617f8533383cbe48d5d2b7dc84b7f0
+	Date: Fri, 20 Oct 2017 00:59:55 GMT
+	Expires: Fri, 20 Oct 2017 00:59:11 GMT
+	Server: BWS/1.1
+	Set-Cookie: BDSVRTM=0; path=/
+	Set-Cookie: BD_HOME=0; path=/
+	Set-Cookie: H_PS_PSSID=1463_21080_17001_20929; path=/; domain=.baidu.com
+	Strict-Transport-Security: max-age=172800
+	Vary: Accept-Encoding
+	X-Powered-By: HPHP
+	X-Ua-Compatible: IE=Edge,chrome=1
+	Transfer-Encoding: chunked
+
+	<h1>haha</h1>
+
+#套接字socket的使用
+    #哪一端先关闭那么哪一端需要等待2ML
+    #使用多进程处理客户端的连接时将客户端的socket传递给新的进程，处理完后需要在子进程和主进程中都进行客户端的socket close操作
+    #socket的读操作会导致进程的阻塞，如果返回结果为空，则说明对端将socket close.
+    1.服务端TCP
+        import socket
+        tcp_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # 设置当服务器先close 即服务器端4次挥手之后资源能够立即释放，这样就保证了，下次运行程序时 可以立即绑定7890端口
+        tcp_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        tcp_server_socket.bind(("", 7890))
+        tcp_server_socket.listen(128)
+        new_socket, client_addr = tcp_server_socket.accept()
+            request = new_socket.recv(1024)
+            print(request)
+            response = "HTTP/1.1 200 OK\r\n"
+            response += "\r\n"
+            response += "hahahhah"
+            new_socket.send(response.encode("utf-8"))
+            new_socket.close()
+        tcp_server_socket.close()
+
+    2.客户端TCP
+        import socket
+        tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        tcp_socket.connect(("192.168.33.11", 7890))
+        send_data = input("请输入要发送的数据:")
+        tcp_socket.send(send_data.encode("utf-8"))
+        tcp_socket.close()
+    
+    3.UDP的使用
+        import socket
+        udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        udp_socket.bind(("", 7890))
+        udp_socket.sendto(b"hahahah------1----", ("192.168.33.53", 8080))
+        udp_socket.sendto(send_data.encode("utf-8"), ("192.168.33.53", 8080))
+        recv_data = udp_socket.recvfrom(1024)
+        recv_msg = recv_data[0]  # 存储接收的数据
+        send_addr = recv_data[1]  # 存储发送方的地址信息
+    
+    4.epoll的使用
+        import socket
+        import re
+        import select
+        def service_client(new_socket, request):
+            response_header = "HTTP/1.1 200 OK\r\n"
+            response_header += "Content-Length:%d\r\n" % len(response_body)
+            response_header += "\r\n"
+            response = response_header.encode("utf-8") + response_body
+            new_socket.send(response)
+        def main():
+            tcp_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            tcp_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            tcp_server_socket.bind(("", 7890))
+            tcp_server_socket.listen(128)
+            tcp_server_socket.setblocking(False)  # 将套接字变为非堵塞
+            # 创建一个epoll对象
+            epl = select.epoll()
+            # 将监听套接字对应的fd注册到epoll中
+            epl.register(tcp_server_socket.fileno(), select.EPOLLIN)
+            fd_event_dict = dict()
+        while True:
+            fd_event_list = epl.poll()  # 默认会堵塞，直到 os监测到数据到来 通过事件通知方式 告诉这个程序，此时才会解堵塞
+            for fd, event in fd_event_list:
+                # 等待新客户端的链接
+                if fd == tcp_server_socket.fileno():
+                    new_socket, client_addr = tcp_server_socket.accept()
+                    epl.register(new_socket.fileno(), select.EPOLLIN)
+                    fd_event_dict[new_socket.fileno()] = new_socket
+                elif event==select.EPOLLIN:
+                    # 判断已经链接的客户端是否有数据发送过来
+                    recv_data = fd_event_dict[fd].recv(1024).decode("utf-8")
+                    if recv_data:
+                        service_client(fd_event_dict[fd], recv_data)
+                    else: #对端关闭socket
+                        fd_event_dict[fd].close()
+                        epl.unregister(fd)
+                        del fd_event_dict[fd]
+            tcp_server_socket.close()
+        if __name__ == "__main__":
+            main()
+
+#with上下文管理器
+    #任何实现了 __enter__() 和 __exit__() 方法的对象都可称之为上下文管理器，上下文管理器对象可以使用 with 关键字。
+    # 显然，文件（file）对象也实现了上下文管理器。
+    # with open("output.txt", "r") as f:
+    #     f.write("Python之禅")
+    class File():
+        def __init__(self, filename, mode):
+            self.filename = filename
+            self.mode = mode
+        def __enter__(self):
+            print("entering")
+            self.f = open(self.filename, self.mode)
+            return self.f
+        def __exit__(self, *args):
+            print("will exit")
+            self.f.close()
+    with File('out.txt', 'w') as f:
+        print("writing")
+        f.write('hello, python')
