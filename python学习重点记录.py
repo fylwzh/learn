@@ -1,7 +1,6 @@
 #常用模块常用功能
     1.  import time
         time.sleep(1)  单位为s，但是如果想要ms的延时，可以输入小数
-
     2.  import os
         os.getpid()  获取进程ID
         os.getppid()  获取父进程ID
@@ -65,11 +64,52 @@
     gl_dict = {"name": "小明", "age": 18}
     demo(*gl_nums, **gl_dict)  #如果不拆包会将（gl_nums，gl_dict）传递给gl_nums
 
-#类的常用操作
-    __init__  #会在创建见对象时自动调用，
-    __str__ #print对象时会调用
-    __new__
-    __call__  # 对象名()  会调用该方法
+#魔法属性
+    1. __doc__     #表示类的描述信息
+        class Foo:
+            def func(self):
+                pass
+        print(Foo.__doc__)
+    2. __module__ 和 __class__
+        #__module__ 表示当前操作的对象在那个模块
+        #__class__ 表示当前操作的对象的类是什么
+        from test import Person
+        obj = Person()
+        print(obj.__module__)  # 输出 test 即：输出模块
+        print(obj.__class__)  # 输出 test.Person 即：输出类
+    3. __init__  #会在创建见对象时自动调用，
+    4. __del__ #当对象在内存中被释放时，自动触发执行。
+    5. __call__  # 对象名()  会调用该方法
+    6. __dict__ #给类用，了输出所有的类属性方法  给对象用，则输出所有的对象属性 对象方法
+    7. __str__ #print对象时会调用
+    8. __getitem__、__setitem__、__delitem__
+        class Foo(object):
+            def __getitem__(self, key):
+                print('__getitem__', key)
+
+            def __setitem__(self, key, value):
+                print('__setitem__', key, value)
+
+            def __delitem__(self, key):
+                print('__delitem__', key)
+        obj = Foo()
+        result = obj['k1']      # 自动触发执行 __getitem__
+        obj['k2'] = 'laowang'   # 自动触发执行 __setitem__
+        del obj['k1']           # 自动触发执行 __delitem__
+    9. __getslice__、__setslice__、__delslice__
+        class Foo(object):
+            def __getslice__(self, i, j):
+                print('__getslice__', i, j)
+            def __setslice__(self, i, j, sequence):
+                print('__setslice__', i, j)
+            def __delslice__(self, i, j):
+                print('__delslice__', i, j)
+        obj = Foo()
+        obj[-1:1]                   # 自动触发执行 __getslice__
+        obj[0:1] = [11,22,33,44]    # 自动触发执行 __setslice__
+        del obj[0:2]                # 自动触发执行 __delslice__
+    10. __new__
+    11. __enter__、__exit__ #用于实现上下文管理器
 
 #单例   new方法先被调用，然后是init
     class MusicPlayer(object):
@@ -89,10 +129,75 @@
     player1 = MusicPlayer()
     print(player1)
     player2 = MusicPlayer()
-    print(player2)  
+    print(player2) 
+
+#类的静态方法，类方法
+    class Foo(object):
+        def __init__(self, name):
+            self.name = name
+        def ord_func(self): """ 定义实例方法，至少有一个self参数 """
+            print('实例方法')
+        @classmethod
+        def class_func(cls): """ 定义类方法，至少有一个cls参数 """
+            print('类方法')
+        @staticmethod
+        def static_func(): """ 定义静态方法 ，无默认参数"""
+            print('静态方法') 
+
+        f = Foo("中国")
+        f.ord_func()     # 调用实例方法
+        Foo.class_func()    # 调用类方法
+        Foo.static_func()   # 调用静态方法
 
 #类的多继承
     "如果一个类有多个父类，并且父类中存在相同的方法，那么子类会调用那个方法通过 print(类名.__mro__) 查看"
+    print("******多继承使用super().__init__ 发生的状态******")
+    class Parent(object):
+        def __init__(self, name, *args, **kwargs):  # 为避免多继承报错，使用不定长参数，接受参数
+            print('parent的init开始被调用')
+            self.name = name
+            print('parent的init结束被调用')
+    class Son1(Parent):
+        def __init__(self, name, age, *args, **kwargs):  # 为避免多继承报错，使用不定长参数，接受参数
+            print('Son1的init开始被调用')
+            self.age = age
+            super().__init__(name, *args, **kwargs)  # 为避免多继承报错，使用不定长参数，接受参数
+            print('Son1的init结束被调用')
+    class Son2(Parent):
+        def __init__(self, name, gender, *args, **kwargs):  # 为避免多继承报错，使用不定长参数，接受参数
+            print('Son2的init开始被调用')
+            self.gender = gender
+            super().__init__(name, *args, **kwargs)  # 为避免多继承报错，使用不定长参数，接受参数
+            print('Son2的init结束被调用')
+    class Grandson(Son1, Son2):
+        def __init__(self, name, age, gender):
+            print('Grandson的init开始被调用')
+            # 多继承时，相对于使用类名.__init__方法，要把每个父类全部写一遍
+            # 而super只用一句话，执行了全部父类的方法，这也是为何多继承需要全部传参的一个原因
+            # super(Grandson, self).__init__(name, age, gender)
+            super().__init__(name, age, gender)   #参数的传入顺序是有要求的，需要与 __mro__ 一致
+            print('Grandson的init结束被调用')
+    print(Grandson.__mro__)
+    gs = Grandson('grandson', 12, '男')
+    print('姓名：', gs.name)
+    print('年龄：', gs.age)
+    print('性别：', gs.gender)
+    print("******多继承使用super().__init__ 发生的状态******\n\n")
+    运行结果：
+        ******多继承使用super().__init__ 发生的状态******
+        (<class '__main__.Grandson'>, <class '__main__.Son1'>, <class '__main__.Son2'>, <class '__main__.Parent'>, <class 'object'>)
+        Grandson的init开始被调用
+        Son1的init开始被调用
+        Son2的init开始被调用
+        parent的init开始被调用
+        parent的init结束被调用
+        Son2的init结束被调用
+        Son1的init结束被调用
+        Grandson的init结束被调用
+        姓名： grandson
+        年龄： 12
+        性别： 男
+        ******多继承使用super().__init__ 发生的状态******
 
 #类多态:就是说子类可以复写父类的方法
 
