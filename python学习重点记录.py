@@ -1,11 +1,68 @@
 #常用模块常用功能
     1.  import time
-        time.sleep(1)  单位为s，但是如果想要ms的延时，可以输入小数
+        time.sleep(1)  #单位为s，但是如果想要ms的延时，可以输入小数
     2.  import os
-        os.getpid()  获取进程ID
-        os.getppid()  获取父进程ID
-    3.import random   
-        random.random()  随机生成 0~1 之间的浮点数
+        os.getpid()  #获取进程ID
+        os.getppid()  #获取父进程ID
+    3.  import random   
+        random.random()  #随机生成 0~1 之间的浮点数
+    4.  import sys
+        #获取参数的个数
+        #           0           1       2
+        #python3    xxxx.py     7890    mini_frame:application
+        len(sys.argv)   #以上面的参数为例，这个长度为 3 
+        port = int(sys.argv[1])  # 7890
+        sys.path.append("./dynamic")
+        sys.path.joint("./dynamic")
+    5.  #使用变量导入模块
+        frame_name = "mini_frame"
+        app = "application"
+        frame = __import__(frame_name)
+        app = getattr(frame, app_name)  # 此时app就指向了 dynamic/mini_frame模块中的application这个函数
+    6.  #eval
+        with open("./web_server.conf") as f:
+        conf_info = eval(f.read())          # 文件中的内容如下：{"static_path":"./static","dynamic_path":"./dynamic" }
+        # 此时 conf_info是一个字典里面的数据为：
+        # {
+        #     "static_path":"./static",
+        #     "dynamic_path":"./dynamic"
+        # }
+        
+#闭包
+    def line_6(k, b):
+        def create_y(x):
+            print(k*x+b)
+        return create_y  #返回函数名称是返回函数的引用，如果想要调用函数需要加()
+    line_6_1 = line_6(1, 2)
+    line_6_1(2)
+
+#装饰器
+    def set_func(func):
+        print("---开始进行装饰")
+        def call_func(*args, **kwargs):
+            print("---这是权限验证1----")
+            print("---这是权限验证2----")
+            # func(args, kwargs)  # 不行，相当于传递了2个参数 ：1个元组，1个字典
+            return func(*args, **kwargs)  # 拆包
+        return call_func
+
+    @set_func  # 相当于 test1 = set_func(test1)
+    def test1(num, *args, **kwargs):
+        print("-----test1----%d" % num)
+        print("-----test1----" , args)
+        print("-----test1----" , kwargs)
+        return "ok"
+
+    ret = test1(100)
+    print(ret)
+    # 执行结果
+    # ---开始进行装饰
+    # ---这是权限验证1----
+    # ---这是权限验证2----
+    # -----test1----100
+    # -----test1---- ()
+    # -----test1---- {}
+    # ok
 
 # print格式化输出
     str = "value1:%d, \r\nvalue2:%d"%(2,3)
@@ -45,7 +102,6 @@
     xiaoming_dict.update(temp_dict)       #字典的合并 如果被合并的字典中包含已经存在的键值对，会覆盖原有的键值对
     for key,value in xiaoming_dict.items():
         
-
 #字符串的使用
     hello_str = "hello hello"
     print(hello_str.count("llo"))  #出现次数统计
