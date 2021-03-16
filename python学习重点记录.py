@@ -4,6 +4,8 @@
     2.  import os
         os.getpid()  #获取进程ID
         os.getppid()  #获取父进程ID
+        os.getcwdb()    #获取python当前的运行目录
+        os.system("dir")    #运行cmd指令
     3.  import random   
         random.random()  #随机生成 0~1 之间的浮点数
     4.  import sys
@@ -13,7 +15,7 @@
         len(sys.argv)   #以上面的参数为例，这个长度为 3 
         port = int(sys.argv[1])  # 7890
         sys.path.append("./dynamic")
-        sys.path.joint("./dynamic")
+        sys.path.joint("./dynamic") ？？？
     5.  #使用变量导入模块
         frame_name = "mini_frame"
         app = "application"
@@ -27,7 +29,8 @@
         #     "static_path":"./static",
         #     "dynamic_path":"./dynamic"
         # }
-        
+    7.  hasattr(Foo, 'echo_bar')  # 判断Foo类中 是否有echo_bar这个属性
+
 #闭包
     def line_6(k, b):
         def create_y(x):
@@ -63,6 +66,55 @@
     # -----test1---- ()
     # -----test1---- {}
     # ok
+
+#多个装饰器对同一个函数装饰
+    def add_qx(func):
+        print("---开始进行装饰权限1的功能---")
+        def call_func(*args, **kwargs):
+            print("---这是权限验证1----")
+            return func(*args, **kwargs)
+        return call_func
+    def add_xx(func):
+        print("---开始进行装饰xxx的功能---")
+        def call_func(*args, **kwargs):
+            print("---这是xxx的功能----")
+            return func(*args, **kwargs)
+        return call_func
+    @add_qx
+    @add_xx
+    def test1():
+        print("------test1------")
+    test1()
+    # 运行结果
+    # ---开始进行装饰xxx的功能---
+    # ---开始进行装饰权限1的功能---
+    # ---这是权限验证1----
+    # ---这是xxx的功能----
+    # ------test1------
+
+#带有参数的装饰器
+    # 带有参数的装饰器装饰过程分为2步:
+    # 1. 调用set_level函数，把1当做实参
+    # 2. set_level返回一个装饰器的引用，即set_func
+    # 3. 用返回的set_func对test1函数进行装饰（装饰过程与之前一样）
+    def set_level(level_num):
+        def set_func(func):
+            def call_func(*args, **kwargs):
+                if level_num == 1:
+                    print("----权限级别1，验证----")
+                elif level_num == 2:
+                    print("----权限级别2，验证----")
+                return func()
+            return call_func
+        return set_func
+    @set_level(1)
+    def test1():
+        print("-----test1---")
+        return "ok"   
+    test1()
+    # 运行结果
+    # ----权限级别1，验证----
+    # -----test1---
 
 # print格式化输出
     str = "value1:%d, \r\nvalue2:%d"%(2,3)
@@ -510,3 +562,46 @@
     with File('out.txt', 'w') as f:
         print("writing")
         f.write('hello, python')
+
+#元类
+    # type的第一个参数为类的名称，第二个参数为继承对象，第三个参数为属性或方法
+    class A(object):
+        num = 100
+    def print_b(self):
+        print(self.num)
+    @staticmethod
+    def print_static():
+        print("----haha-----")
+    @classmethod
+    def print_class(cls):
+        print(cls.num)
+    B = type("B", (A,), {"print_b": print_b, "print_static": print_static, "print_class": print_class})
+    b = B()
+    b.print_b()
+    b.print_static()
+    b.print_class()
+    # 结果
+    # 100
+    # ----haha-----
+    # 100
+
+    #__metaclass__属性
+    #-*- coding:utf-8 -*-  实现将类属性bar的名称改为大写
+    def upper_attr(class_name, class_parents, class_attr):  #执行这个函数时会自动将 类名称，父类，所有的类属性传递进来
+        #遍历属性字典，把不是__开头的属性名字变为大写
+        new_attr = {}
+        for name,value in class_attr.items():
+            if not name.startswith("__"):
+                new_attr[name.upper()] = value
+        #调用type来创建一个类
+        return type(class_name, class_parents, new_attr)
+    class Foo(object, metaclass=upper_attr):
+        bar = 'bip'
+    print(hasattr(Foo, 'bar'))
+    print(hasattr(Foo, 'BAR'))
+    f = Foo()
+    print(f.BAR)
+    #运行结果
+    # False
+    # True
+    # bip

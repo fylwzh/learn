@@ -93,6 +93,9 @@ VSCode开发环境配置：
 }
 
 6.python调试时的路径配置问题
+	在debug下，点击上面的齿轮进行配置  
+	参考：https://baijiahao.baidu.com/s?id=1665860252885838288&wfr=spider&for=pc
+
 	{
 		// Use IntelliSense to learn about possible attributes.
 		// Hover to view descriptions of existing attributes.
@@ -110,6 +113,46 @@ VSCode开发环境配置：
 		]
 	}
 	在Python中按F5执行py文件时，默认是从当前打开的文件夹目录为执行路径。如果main入口在文件夹顶层还好，如果在子文件夹就会有些问题，比如相对路径导入模块时会报错。
+	
+	{
+		// Use IntelliSense to learn about possible attributes.
+		// Hover to view descriptions of existing attributes.
+		// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+		"version": "0.2.0",
+		"configurations": [
+			{
+				"name": "buildMachine",
+				"type": "python",
+				"request": "launch",
+				"program": "${file}",
+				"console": "integratedTerminal",
+				"cwd": "${fileDirname}"
+			},
+			{
+				"name": "PMT",
+				"type": "python",
+				"request": "launch",
+				"program": "${file}",
+				"console": "integratedTerminal",
+				"cwd": "${fileDirname}",
+				"args": [
+					"-i","ProjectName.pdb",
+					"-c","COM6",
+					"-s"
+				]
+			}
+		]
+	}
+		
+	
+	
+	
+	
+	
+	
+	
+	
+	
 
 honeywell本地版本管理搭建步骤：
 
