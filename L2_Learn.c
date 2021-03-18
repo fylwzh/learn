@@ -64,7 +64,7 @@
 	#define FLEXSPINOR_EPRDB1_OFFSET (0x880U)
 	
 	个人：
-		CTR模式两次加密就是解密
+		CTR模式两次加密就是解密,在CTR模式下，加密的是counter，使用加密的counter与plaintext异或
 		region0的范围是固定的，region1的范围是动态的
 
 	
