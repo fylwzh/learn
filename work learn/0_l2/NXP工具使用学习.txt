@@ -1,0 +1,22 @@
+MCUBOOT 			MCU Bootloader
+KeyBlob				KeyBlob is a data structure that wraps the DEK for image decryption using AES-CCM algorithm
+DEK					“Key” used to decrypt the encrypted bootable image
+SB file				The SB file is the NXP binary file format for bootable images. 
+					The file consists of sections, sequence of bootloader commands, and data that assists MCU Bootloader in programming the image to target memory. 
+					The image data can also be encrypted in the SB file. The file can be downloaded to the target using the MCU Bootloader receive-sb-file command.
+CST					Code Signing Tool
+XIP					Execute-In-Place
+
+
+MfgTool2.exe: GUI Windows application to download and program an application image into the external flash device.
+elftosb: command line tool to convert ELF/SREC formatted application image into bootable image format (or SB format).
+blhost: command line debug tool called by MfgTool to perform application programming. (下载用户应用程序)
+sdphost: command line tool to download and execute flashloader application on the device. (下载并执行flashloader)
+
+NXP存在两个程序，一个是烧写到芯片内部的bootrom，以及一个二级boot程序 flashloader
+flashloader运行在SRAM中
+The Flashloader prepares and configures the devices for boot. It creates boot configuration structure on the bootable media wherever required, assists in programming encrypted images, generates key blobs, communicates with master on serial peripherals like USB and UART using MCUBOOT commands interface protocol in downloading boot images
+
+In general, for the external memory devices that support XIP feature, the IVT
+offset is 0x1000 else it is 0x400. For example, for FlexSPI NOR on RT1060, the IVT must start at address 0x60001000 (start
+address is 0x6000_0000, IVT offset is 0x1000).

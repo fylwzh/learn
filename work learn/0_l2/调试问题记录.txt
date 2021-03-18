@@ -1,0 +1,700 @@
+遇到的问题以及解决方法：
+1.在bring up 工程，选择flexspi_nor_debug工程调试下载时报错
+	There were 1 error and 1 warning during the initialization of the debugging session.
+	There is more information in the Debug Log window.
+	Do you want to continue whith the "Run to" command?
+	
+	Mon Nov 02, 2020 11:14:07: CPU status - IN RESET 
+	Mon Nov 02, 2020 11:14:07: Verification error at 0x60000000: mem = 0x40, file = 0x46 
+	Mon Nov 02, 2020 11:14:07: Download completed but verification failed. 
+
+	
+	解决方法：右键，options-->Debugger-->CMSIS DAP
+				在Setup选项卡中的Reset选项改成Software 即可
+				
+				
+2.上传服务器后，重新clone后编译报错，因为工作空间没有选择正确，需要更改所有工作空间的配置
+
+
+
+代码编写调试注意事项：
+
+I2C调试
+
+	I2c配置成非阻塞方式，需要定义如下宏：LPI2C_WAIT_TIMEOUT=0xFFFF
+
+	1.24LC32AT-E/SN  eeprom：
+		4 blocks of 8K bits (32K bit)  4KB  12位地址
+		地址需要2个字节表示
+		页写一次写入32B数据
+		页写可以小于32B，但是不能大于32B？？
+		延时是否必须？？
+		地址长度改成2字节，页长度从8字节改成32字节。
+	
+		op1		I2c1				op2		I2c1
+		GPIO_SD_B1_04				GPIO_SD_B1_04
+		GPIO_SD_B1_05				GPIO_SD_B1_05/
+
+	2.MCP7940NT-E/SN  RTC
+		最高速率为400K
+		地址：0b1101 111+RW    0xDE:write  0xDF:read
+		2001 to 2399年
+		
+
+	3.TCA6408AQPWRQ1  led panel contral
+		最高400KB
+		一共四个寄存器：
+		Register 0 (Input Port Register)
+		只读，表示引脚的输入状态
+		Register 1 (Output Port Register)
+		可读可写，设置引脚的输出状态
+		Register 2 (Polarity Inversion Register)
+		可读可写，设置为1时，引脚为输入时，输入状态反转
+		Register 3 (Configuration Register)
+		设置引脚的输入输出状态，1表示输入，0表示输出
+		
+		原理图上addr接高电平  设备的地址为：
+		
+		op1	i2c3				op2 i2c3
+		GPIO_AD_B1_06			GPIO_AD_B1_06
+		GPIO_AD_B1_07			GPIO_AD_B1_07	
+		
+	4.ATECC608
+	
+		op2								op1
+		LPI2C2_SCL  GPIO_B0_04			GPIO_SD_B1_11/LPI2C2_SCL_op1
+		LPI2C2_SDA  GPIO_B0_05			GPIO_SD_B1_10/LPI2C2_SDA_op1
+		
+		ecc608底层初始化调用：
+		目录：HON_IoT_SDK->Components->security->ecc608->extension->hal->hal_rt_i2c.c   hal_rt_i2c.h
+		需要配置底层的引脚。
+		ATECC608的设备地址需要确定一下。I2c地址的默认值为0xC0，参考508手册的P13
+		目前的ATECC608的地址为  #define ECC608_DEV_I2C_ADDRESS ((uint8_t) 0x60)
+		
+		ATCA_STATUS atecc608_init(uint8_t i2c_device_address)
+			ATCA_STATUS atcab_init(ATCAIfaceCfg *cfg)
+				ATCADevice newATCADevice(ATCAIfaceCfg *cfg)
+					ATCAIface newATCAIface(ATCAIfaceCfg *cfg)  // constructor
+						ATCA_STATUS atinit(ATCAIface ca_iface)
+							ATCA_STATUS _atinit(ATCAIface ca_iface, ATCAHAL_t *hal)
+								ATCA_STATUS hal_iface_init(ATCAIfaceCfg *cfg, ATCAHAL_t *hal)
+		sn:01 23 17 0c 8a 8e 6f cd ee 
+		添加如下路径：
+			$PROJ_DIR$\..\..\..\..\Components\security\ecc608
+			$PROJ_DIR$\..\..\..\..\Components\security\ecc608\extension
+			$PROJ_DIR$\..\..\..\..\Components\security\ecc608\CryptoAuthLib
+			$PROJ_DIR$\..\..\..\..\Components\security\ecc608\CryptoAuthLib\lib
+			$PROJ_DIR$\..\..\..\..\Components\security\crypt_host
+			$PROJ_DIR$\..\..\..\..\Components\security\mbedtls\extension\include
+			$PROJ_DIR$\..\..\..\..\Components\security\mbedtls\extension
+			$PROJ_DIR$\..\..\..\..\Components\security\mbedtls\extension\port
+			$PROJ_DIR$\..\..\..\..\..\SDK_EVK-MIMXRT\middleware\mbedtls\include
+			$PROJ_DIR$\..\..\..\..\..\SDK_EVK-MIMXRT\middleware\mbedtls\port\ksdk
+		添加如下宏定义：
+			MBEDTLS_CONFIG_FILE="port/rt_mbedtls_config.h"
+			CONFIG_RT_ECCHIP_SUPPORT
+			BRINGUP_TEST
+		
+	5.时钟只能初始化一次 ？？？(不是的，当时是因为初始化了qSPI的引脚)
+		/* Config frequency of lpi2c clock 480/8/(5+1) = 10MHz */
+		/* Select USB1 PLL (480 MHz) as master lpi2c clock source */
+		CLOCK_SetMux(kCLOCK_Lpi2cMux, LPI2C_CLOCK_SOURCE_SELECT);
+		/* Clock divider for master lpi2c clock source */
+		CLOCK_SetDiv(kCLOCK_Lpi2cDiv, LPI2C_CLOCK_SOURCE_DIVIDER);
+			
+以太网调试
+	1.去掉ECC608与mbedtls的关联，将prov移除
+		移除如下路径
+		$PROJ_DIR$\..\..\..\..\Components\security\mbedtls\extension\include
+		$PROJ_DIR$\..\..\..\..\Components\security\mbedtls\extension
+		$PROJ_DIR$\..\..\..\..\Components\security\mbedtls\extension\port
+		$PROJ_DIR$\..\..\..\..\..\SDK_EVK-MIMXRT\middleware\mbedtls\include
+		$PROJ_DIR$\..\..\..\..\..\SDK_EVK-MIMXRT\middleware\mbedtls\port\ksdk
+		
+		将crypto组移除
+		将atca_host_extension.c移除
+		
+	2.添加文件 lwip_ping_freertos.c  lwipopts.h到测试目录
+	3.添加路径
+		opt.h的路径
+		$PROJ_DIR$\..\..\..\..\..\SDK_EVK-MIMXRT\middleware\lwip\src\include
+		cc.h的路径
+		$PROJ_DIR$\..\..\..\..\..\SDK_EVK-MIMXRT\middleware\lwip\port
+		ping.h的路径
+		$PROJ_DIR$\..\..\..\..\..\SDK_EVK-MIMXRT\middleware\lwip\contrib\apps\ping
+		lwipopts.h
+		$PROJ_DIR$\..\Enet
+		fsl_phy.h
+		
+	4.添加宏
+		USE_RTOS=1
+		FSL_FEATURE_PHYKSZ8081_USE_RMII50M_MODE
+		FSL_SDK_ENABLE_DRIVER_CACHE_CONTROL=1
+	
+	5.修改main名称
+	
+	6.向工程中添加lwip库
+	
+	7.在board组中添加 phy
+	
+	8.在drivers组中添加 enet驱动  添加Dcache
+	
+	9.初始化函数：
+	ethernetif0_init
+		ethernetif_init
+			netif->linkoutput = ethernetif_linkoutput;
+			ethernetif_enet_init(netif, ethernetif, ethernetifConfig);
+				ethernetif_phy_init(ethernetif, ethernetifConfig, &config);
+				/* Initialize the ENET module.*/
+				ENET_Init(ethernetif->base, &ethernetif->handle, &config, &buffCfg[0], netif->hwaddr, sysClock);
+				ENET_SetCallback(&ethernetif->handle, ethernet_callback, netif);
+					
+
+				ethernet_callback
+					ethernetif_input
+						ethernetif_linkinput
+		
+	
+	
+	
+	PHY的地址：开发板 0x02   RTVSOM 0x06
+	PHY初始化：
+		操作			 	寄存器		写入		读取返回
+		读取PHY的ID   	 	0x02		 			返回0x22表示成功
+		写入PHY复位			0x00		0x8000U
+		读取 				0x1f
+		写入				0x1f		0x0080U
+		
+
+		op2										op1
+		GPIO_B1_12/RMII_NRST_T/GPIO2_IO28		GPIO_AD_B1_01/RMII_NRST/GPIO1_IO17
+		GPIO_B1_13/RMII_INT_T/GPIO2_IO29		GPIO_AD_B1_00/RMII_INT_T/GPIO1_IO16
+
+		GPIO_B1_14/RMII_MDC						GPIO_EMC_38/RMII_MDC
+		GPIO_B1_15/RMII_MDIO					GPIO_EMC_39/RMII_MDIO
+		GPIO_B1_10/RMII_REF_CLK					GPIO_EMC_33/RMII_REF
+
+		GPIO_B1_04/RMII_RXD0					GPIO_EMC_35/RMII_RXD0
+		GPIO_B1_05/RMII_RXD1					GPIO_EMC_36/RMII_RXD1
+		GPIO_B1_06/RMII_CRS_DV					GPIO_EMC_37/RMII_CRS_DV
+		GPIO_B1_07/RMII_TXD0					GPIO_EMC_30_RMII_TXD0
+		GPIO_B1_08/RMII_TXD1					GPIO_EMC_31_RMII_TXD1
+		GPIO_B1_09/RMII_TXEN					GPIO_EMC_32/RMII_TXEN
+		GPIO_B1_11/RMII_RXER					GPIO_EMC_34/RMII_RXER
+		
+		ENET_Init
+			ENET_SetHandler
+		
+		void ENET_CommonFrame0IRQHandler(ENET_Type *base)
+			void ENET_ReceiveIRQHandler(ENET_Type *base, enet_handle_t *handle)
+
+
+	rt1051和rt1062的phy驱动分开写
+	rt1062的fsl_enet.c中的数组定义  enet_handle_t *s_ENETHandle[FSL_FEATURE_SOC_ENET_COUNT + 1] 存在问题，在中断处理时会发生数组越界
+		我找到了问题的原因，我用的这版本的SDK 2.6.2的以太网2好像存在数组访问越界的问题.
+		文件 fsl_enet.c中定义了一个变量
+		static enet_handle_t *s_ENETHandle[FSL_FEATURE_SOC_ENET_COUNT] = {NULL};
+
+		FSL_FEATURE_SOC_ENET_COUNT这个值为2
+
+		但是在函数 static void ENET_SetHandler(ENET_Type *base, enet_handle_t *handle, const enet_config_t *config, const enet_buffer_config_t *bufferConfig)
+		中的赋值语句 s_ENETHandle[instance] = handle;  在使用Enet2时 instance的值是2，这样赋值时就出现了数组越界.
+
+		我看你给我那个参考的SDK的确是修改了数组 ENETHandle的定义，数组大小进行了 +1 的操作。
+		static enet_handle_t *s_ENETHandle[FSL_FEATURE_SOC_ENET_COUNT + 1] = {NULL};
+
+	
+	
+LCD调试
+	添加路径：
+		$PROJ_DIR$\..\LCD_Test
+		
+	由于显存需要较大的空间，所以在使用flexspi工程时需要支持SDRAM，
+	将显存数据存放到SDRAM中，做如下修改：
+	1.修改ICF文件， MIMXRT1062xxxxx_sdram.icf -->MIMXRT1062xxxxx_flexspi_nor_sdram.icf
+	2.添加宏定义：	
+		XIP_BOOT_HEADER_DCD_ENABLE=1
+		SKIP_SYSCLK_INIT
+	3.调试需要支持SDRAM，将Debugger->Setup中 选中Use macro files 
+		$PROJ_DIR$\evkmimxrt1060_sdram_init.mac
+
+	液晶控制芯片型号   ST7701S
+	触摸屏控制芯片型号  ST1633I
+	
+	pin name		pin num			RTV								SMB							描述
+	TFT_CTP-RST		1				GPIO_AD_B0_14/GPIO1_IO14		GPIO_AD_B0_04/GPIO1_IO04				低电平复位至少10us，复位后需要等待120ms
+
+	VCC				5
+	SDO				6				GPIO_EMC_03/LPSPI2_SDI			GPIO_EMC_03/GPIO4.IO[3]
+	GND				7
+	SDA				8				GPIO_EMC_02/LPSPI2_SDO_op1		GPIO_EMC_02/GPIO4.IO[2]
+	SCL				9				GPIO_EMC_00/LPSPI2_SCK_op1		GPIO_EMC_00/GPIO4.IO[0]
+	CS				10				GPIO_EMC_01/LPSPI2_CS0_op1		GPIO_EMC_01/GPIO4.IO[1]
+	TE				11				GPIO_B0_01/LCDTE				GPIO_B0_01/GPIO2.IO[1]
+	R7~R0			12-19
+	G7~G0			20-27
+	B7~B0			28-35
+	PCLK			36				GPIO_B0_00/LCDCLK				GPIO_B0_00/GPIO2.IO[0]
+	HSYNC			37				GPIO_B0_02/LCDHSYNC				GPIO_B0_02/GPIO2.IO[2]
+	VSYNC			38				GPIO_B0_03/LCDVSYNC				GPIO_B0_03/GPIO2.IO[3]
+	LEDK			39				GPIO_B1_14/GPIO2_IO30			GPIO_B1_15/GPIO2.IO[31]
+	LEDA			40
+	
+	GPIO_B0_11/LCDR7		GPIO_B0_11
+	GPIO_B0_10/LCDR6										
+	GPIO_B0_09/LCDR5
+	GPIO_B0_08/LCDR4
+	GPIO_B0_07/LCDR3
+	GPIO_B0_06/LCDR2
+	GPIO_B0_05/LCDR1
+	GPIO_B0_04/LCDR0		GPIO_B0_04
+	GPIO_B1_03/LCDG7		GPIO_B1_03
+	GPIO_B1_02/LCDG6
+	GPIO_B1_01/LCDG5
+	GPIO_B1_00/LCDG4
+	GPIO_B0_15/LCDG3
+	GPIO_B0_14/LCDG2
+	GPIO_B0_13/LCDG1
+	GPIO_B0_12/LCDG0		GPIO_B0_12
+	GPIO_B1_11/LCDB7		GPIO_B1_11
+	GPIO_B1_10/LCDB6										
+	GPIO_B1_09/LCDB5
+	GPIO_B1_08/LCDB4
+	GPIO_B1_07/LCDB3
+	GPIO_B1_06/LCDB2
+	GPIO_B1_05/LCDB1
+	GPIO_B1_04/LCDB0		GPIO_B1_04
+	
+	void BOARD_InitLCD(void)
+	void Board_LCD_Initialize()
+	
+	lcd显示花屏，因为没有配置MPU，将Hyperram的区域配置成不使用cache
+		MPU->RBAR = ARM_MPU_RBAR(9, 0x70000000U);  
+		在SDRAM的ICF中，将这个内存映射为NONCACHE段，
+		
+		//解决颜色切换时的花屏问题
+		*(unsigned int*)0x41044100 = 0x4; // AHB Priority of LCD read
+		*(unsigned int*)0x41044104 = 0x4; // AHB Priority of LCD write
+		*(unsigned int*)0x41442100 = 0x1; // AHB Priority of Core read
+		*(unsigned int*)0x41442104 = 0x1; // AHB Priority of Core write
+		
+	调试spi时，如果不读取fifo中的数据会导致spi发送阻塞。
+	
+	关于PWM：
+	GPIO_B1_14用这个引脚来控制BL  IOMUXC_GPIO_B1_14_FLEXPWM4_PWMA02
+
+
+	触摸板：
+	CTP-INT			2				GPIO_EMC_40/GPIO3_IO26			GPIO_AD_B0_03/GPIO1_IO03
+	CTP-SDA			3				GPIO_AD_B1_06/GPIO1_IO22		GPIO_AD_B1_01/GPIO1_IO17
+	CTP-SCL			4				GPIO_AD_B1_07/GPIO1_IO23		GPIO_AD_B1_00/GPIO1_IO16
+
+	
+	触摸板上电后需要50ms的初始化时间。
+	默认的I2c地址为0x55
+	每次点击触摸板会产生两次中断，但是有一次坐标的数据不是有效的。
+
+
+
+
+	
+SDRAM调试
+	The sdram used in your side is 8 column address, 
+	please modify SDRAMCR0 register configuration in file 
+	evkmimxrt1060_sdram_init.mac  和 evkmimxrt1060_sdram_ini_dcd.c
+	修改前寄存器的值为  0xF31  修改后的值为 0xfb1
+	修改后OK
+	
+	EVK引脚名称			EVK					option1引脚名称		option1			option2引脚名称		option2
+	SEMC_CLK			GPIO_EMC_26												SEMC_CLK			GPIO_EMC_26
+	SEMC_CKE			GPIO_EMC_27												SEMC_CKE			GPIO_EMC_27
+	SEMC_RAS			GPIO_EMC_25												SEMC_RAS			GPIO_EMC_25
+	SEMC_CAS			GPIO_EMC_24												SEMC_CAS			GPIO_EMC_24
+	SEMC_WE				GPIO_EMC_28												SEMC_WE				GPIO_EMC_28
+	SEMC_CS0			GPIO_EMC_29												SEMC_CS0			GPIO_EMC_29
+	SEMC_BA0			GPIO_EMC_21												SEMC_BA0			GPIO_EMC_21
+	SEMC_BA1			GPIO_EMC_22												SEMC_BA1			GPIO_EMC_22
+	SEMC_DM0			GPIO_EMC_08												SEMC_DM0			GPIO_EMC_08
+	SEMC_DM1			GPIO_EMC_38												SEMC_DM1			GPIO_EMC_38
+
+	SEMC_A0				GPIO_EMC_09												SEMC_ADDR00			GPIO_EMC_09	
+	～					～														～					～
+	SEMC_A9				GPIO_EMC_18												SEMC_ADDR09			GPIO_EMC_18
+	SEMC_A10			GPIO_EMC_23												SEMC_ADDR10			GPIO_EMC_23
+	SEMC_A11			GPIO_EMC_19												SEMC_ADDR11			GPIO_EMC_19
+	SEMC_A12			GPIO_EMC_20												？？？？ 链接到芯片的NC
+
+	SEMC_D0				GPIO_EMC_00												SEMC_DATA00			GPIO_EMC_00
+	～																			～					～
+	SEMC_D7				GPIO_EMC_07												SEMC_DATA07			GPIO_EMC_07
+	SEMC_D8				GPIO_EMC_30												SEMC_DATA08			GPIO_EMC_30	
+	～																			～
+	SEMC_D15			GPIO_EMC_37												SEMC_DATA15			GPIO_EMC_37
+	
+	
+	evkmimxrt1050_dcd.c 文件为 dcd.c
+	
+	开发板的SDRAM是32MB
+	option1的SDRAM是 16MB
+	option2的SDRAM是 8MB
+	需要修改MPU的配置，及以及ICF中的 noncache 区域的起始位置和大小
+	
+	// Disable bypass of SYS PLL
+	__writeMemory32(0x00002001, 0x400D8030, "Memory");  //CCM_ANALOG_PLL_SYS   0x400D8030
+  
+ 
+	// PFD2_FRAC: 29, PLL2 PFD2=528*18/PFD2_FRAC=327
+	// Ungate SYS PLL PFD2
+	__writeMemory32(0x001d0000, 0x400D8100, "Memory");	//CCM_ANALOG_PFD_528	0x400D8100的16～21位设置PFD2_FRAC
+
+
+片上RTC调试
+	参考LP的demo，HP的demo掉电不保存，但是运行比LP的快。
+	
+	c 2021 2 20 10 53 0
+	d
+
+	 
+
+	4 on 12
+	4 off 12
+
+
+spi调试：
+	发送的同时会产生接收中断.
+	
+	op2									op1
+	GPIO_B0_00/SEMC_CSX1/LPSPI4_CS0		GPIO_EMC_01/LPSPI2_CS0_op1
+	GPIO_B0_01/SEMC_CSX2/LPSPI4_SDI		GPIO_EMC_03/LPSPI2_SDI_op1
+	GPIO_B0_02/SEMC_CSX3/LPSPI4_SDO		GPIO_EMC_02/LPSPI2_SDO_op1
+	GPIO_B0_03/LPSPI4_SCK				GPIO_EMC_00/LPSPI2_SCK_op1
+	
+	
+关于flexspi
+	rt1062有两个flexspi，每个flexspi最多接4个存储设备
+	flexspi_nor_config_t
+	
+	EVK引脚名称			EVK					option1引脚名称		option1			option2引脚名称		option2
+	FlexSPI_SS0			GPIO_SD_B1_06		QSPICS				GPIO_AD_B1_15	QSPICS				GPIO_AD_B1_15		
+	FlexSPI_CLK			GPIO_SD_B1_07		QSPICLK				GPIO_AD_B1_14	QSPICLK				GPIO_AD_B1_14
+	FlexSPI_D0_A		GPIO_SD_B1_08		QSPID0				GPIO_AD_B1_13	QSPID0				GPIO_AD_B1_13
+	FlexSPI_D1_A		GPIO_SD_B1_09		QSPID1				GPIO_AD_B1_12	QSPID1				GPIO_AD_B1_12
+	FlexSPI_D2_A		GPIO_SD_B1_10		QSPID2				GPIO_AD_B1_11	QSPID2				GPIO_AD_B1_11
+	FlexSPI_D3_A		GPIO_SD_B1_11		QSPID3				GPIO_AD_B1_10	QSPID3				GPIO_AD_B1_10
+	
+关于hyperram  8M
+	hyperram不支持提前初始化，所以在ICF中不用连接到ICF中
+	参考  	
+		https://bitbucket.honeywell.com/projects/smbcp/repos/honeycomb/browse
+		https://bitbucket.honeywell.com/projects/smbcp/repos/in4ps-firmware/browse
+		文件：honeycomb\mbsp\boards\FS_IMXRT_TSTAT\board_flexspi_hyper_ram_FS_IMXRT_TSTAT
+		引脚初始化：
+			BOARD_InitBootPins(void)  Board_InitPins_HyperRAM
+			
+	option1引脚名称		option1
+	RAMRST				GPIO_EMC_11
+	RAMCS				GPIO_EMC_24
+	RAMDQS				GPIO_EMC_23
+	RAMACLK				GPIO_EMC_25
+	RAMBCLK				GPIO_EMC_12
+	RAMAD0				GPIO_EMC_26
+	RAMAD1				GPIO_EMC_27
+	RAMAD2				GPIO_EMC_28
+	RAMAD3				GPIO_EMC_29
+	RAMBD0				GPIO_EMC_13
+	RAMBD1				GPIO_EMC_14
+	RAMBD2				GPIO_EMC_15
+	RAMBD3				GPIO_EMC_16
+		
+__attribute__((section(".boot_hdr.dcd_data")))
+
+关于时钟
+	CLOCK_GetFreq
+		kCLOCK_CpuClk  = 0x0U, /*!< CPU clock */
+		kCLOCK_AhbClk  = 0x1U, /*!< AHB clock */
+		kCLOCK_SemcClk = 0x2U, /*!< SEMC clock */
+		kCLOCK_IpgClk  = 0x3U, /*!< IPG clock */
+		kCLOCK_PerClk  = 0x4U, /*!< PER clock */
+
+		kCLOCK_OscClk = 0x5U, /*!< OSC clock selected by PMU_LOWPWR_CTRL[OSC_SEL]. */
+		kCLOCK_RtcClk = 0x6U, /*!< RTC clock. (RTCCLK) */
+
+		kCLOCK_ArmPllClk = 0x7U, /*!< ARMPLLCLK. */
+
+		kCLOCK_Usb1PllClk     = 0x8U, /*!< USB1PLLCLK. */
+		kCLOCK_Usb1PllPfd0Clk = 0x9U, /*!< USB1PLLPDF0CLK. */
+		kCLOCK_Usb1PllPfd1Clk = 0xAU, /*!< USB1PLLPFD1CLK. */
+		kCLOCK_Usb1PllPfd2Clk = 0xBU, /*!< USB1PLLPFD2CLK. */
+		kCLOCK_Usb1PllPfd3Clk = 0xCU, /*!< USB1PLLPFD3CLK. */
+
+		kCLOCK_Usb2PllClk = 0xDU, /*!< USB2PLLCLK. */
+
+		kCLOCK_SysPllClk     = 0xEU,  /*!< SYSPLLCLK. */
+		kCLOCK_SysPllPfd0Clk = 0xFU,  /*!< SYSPLLPDF0CLK. */
+		kCLOCK_SysPllPfd1Clk = 0x10U, /*!< SYSPLLPFD1CLK. */
+		kCLOCK_SysPllPfd2Clk = 0x11U, /*!< SYSPLLPFD2CLK. */
+		kCLOCK_SysPllPfd3Clk = 0x12U, /*!< SYSPLLPFD3CLK. */
+
+		kCLOCK_EnetPll0Clk = 0x13U, /*!< Enet PLLCLK ref_enetpll0. */
+		kCLOCK_EnetPll1Clk = 0x14U, /*!< Enet PLLCLK ref_enetpll1. */
+
+		kCLOCK_AudioPllClk = 0x15U, /*!< Audio PLLCLK. */
+		kCLOCK_VideoPllClk = 0x16U, /*!< Video PLLCLK. */
+		
+		
+	ECC608   OP2_R3    400K
+	eeprom   U23_pin6  400K	
+	IOex	 U19_pin14  400K
+	
+	Enet mdc r240   2.5M
+		  ref clk  50M
+	flash   133M
+	rs232  115200
+	rs485  115200
+	spi   	100K
+	sdram  	144M
+	
+	#define EXAMPLE_CLOCK_NAME kCLOCK_IpgClk
+	
+		  
+Beeper调试：
+	op1								op2
+	GPIO_B1_15_op1					GPIO_B0_10
+	
+		  
+	
+usbhost 调试：
+	EVK引脚名称			EVK					option1引脚名称		option1			option2引脚名称		option2
+	OTG2_DN				USB_OTG2_DN			HOST_D_MINUS		USB_OTG2_DN		HOST_D_MINUS		USB_OTG2_DN
+	OTG2_DP				USB_OTG2_DP			HOST_D_PLUS			USB_OTG2_DP		HOST_D_PLUS			USB_OTG2_DP
+	USB_OTG2_ID			悬空													ID					悬空
+	USB_HOST_OC			GPIO_AD_B0_00		USB_HOST_OC			GPIO_AD_B0_00	USB_HOST_OC			GPIO_AD_B0_00
+	USB_HOST_PWR		GPIO_B1_15			USB_HOST_PWR		GPIO_EMC_41_op1	USB_HOST_PWR		GPIO_AD_B0_15	
+	
+rs232调试：
+	短路P16的pin3和pin4
+	
+BM28调试：
+					option2									option1
+	SD1_CMD			GPIO_SD_B0_00/USDHC1_CM					GPIO_SD_B0_00/USDHC1_CMD_op1
+	SD1_CLK			GPIO_SD_B0_01/USDHC1_CLK				GPIO_SD_B0_01/USDHC1_CLK_op1
+	SD1_D0			GPIO_SD_B0_02/USDHC1_DATA0				GPIO_SD_B0_02/USDHC1_DATA0_op1
+	SD1_D1			GPIO_SD_B0_03/USDHC1_DATA1				GPIO_SD_B0_03/USDHC1_DATA1_op1
+	SD1_D2			GPIO_SD_B0_04/USDHC1_DATA2				GPIO_SD_B0_04/USDHC1_DATA2_op1
+	SD1_D3			GPIO_SD_B0_05/USDHC1_DATA3				GPIO_SD_B0_05/USDHC1_DATA3_op1
+
+	BM28_UART_CTS	GPIO_AD_B1_00/LPUART2_CTS				GPIO_EMC_17/UART4_CTS_op1
+	BM28_UART_RTS	GPIO_AD_B1_01/LPUART2_RTS				GPIO_EMC_18/UART4_RTS_op1
+	BM28_UART_TX	GPIO_AD_B1_02/LPUART2_TX				GPIO_EMC_19/UART4_TX_op1
+	BM28_UART_RX	GPIO_AD_B1_03/LPUART2_RX				GPIO_EMC_20/UART4_RX_op1
+
+	BM28_BT_HOST_WAKE	GPIO_SD_B1_00/FLEXSPI_B_DATA3		GPIO_SD_B1_00/FLEXSPI_B_DATA3_op1
+	BM28_DEV_WAKE		GPIO_SD_B1_01/FLEXSPI_B_DATA2		GPIO_SD_B1_01/FLEXSPI_B_DATA2_op1
+	BM28_GPIO_0			GPIO_SD_B1_10						GPIO_AD_B0_15/LPUART1_RTS_op1
+	BM28_WIFI_REG		PMIC_ON_REQ/SNVS_LP.PMIC_ON_REQ		BMWIFIREG_op1 PMIC_ON_REQ/SNVS_LP.PMIC_ON_REQ
+	BM28_BT_REG			PMIC_STBY_REQ/CCM.PMIC_VSTBY_REQ	BMBTREG_op1 PMIC_STBY_REQ/CCM.PMIC_VSTBY_REQ
+
+
+	wwd_SDIO.c
+	wwd_result_t host_platform_bus_init( void )  //sdio的初始化，给wifi模块使用
+
+	ble的串口初始化宏定义在board.h中，BOARD_BT_UART_BASEADDR
+	
+	rt1051 卡死问题：
+	修改lwipopts.h
+		#ifdef CPU_MIMXRT1052DVL6B
+		/* ---------- Core locking ---------- */
+
+		//#define LWIP_TCPIP_CORE_LOCKING 1
+		//
+		//void sys_lock_tcpip_core(void);
+		//#define LOCK_TCPIP_CORE() sys_lock_tcpip_core()
+		//
+		//void sys_unlock_tcpip_core(void);
+		//#define UNLOCK_TCPIP_CORE() sys_unlock_tcpip_core()
+		//
+		//void sys_check_core_locking(void);
+		//#define LWIP_ASSERT_CORE_LOCKED() sys_check_core_locking()
+		//
+		//void sys_mark_tcpip_thread(void);
+		//#define LWIP_MARK_TCPIP_THREAD() sys_mark_tcpip_thread()
+		#endif
+
+
+
+
+
+
+RT1052的调试记录
+
+	1. 修改一下Flash的算法，更新 C:\Program Files (x86)\IAR Systems\Embedded Workbench 8.3\arm\config\flashloader\NXP 目录下的FlashIMXRT1050_EVK_FlexSPI.flash   FlashIMXRT1050_EVK_FlexSPI.out
+	2. ICF使用NOR_SDRAM
+	3.1062 和 1051 使用同一个 FreeRTOSCofig.h，并添加如下修改
+		
+		#if defined(__ICCARM__)||defined(__CC_ARM)||defined(__GNUC__)
+			/* Clock manager provides in this variable system core clock frequency */
+			#include <stdint.h>
+			extern uint32_t SystemCoreClock;
+		#endif
+		
+		#ifdef CPU_MIMXRT1052DVL6B
+		#define configENABLE_MPU 0
+		#define configENABLE_FPU 0
+		#define configENABLE_TRUSTZONE 0
+		#endif
+				
+		#ifdef CPU_MIMXRT1052DVL6B
+		#define configUSE_APPLICATION_TASK_TAG 0
+		#endif
+		
+		#ifndef configAPPLICATION_ALLOCATED_HEAP
+		#define configAPPLICATION_ALLOCATED_HEAP 0
+		#endif
+
+	4.调试需要在inner模式下，在串口模式下flashloader总是报错
+	
+
+
+
+bring up剩余问题：
+	1. mpu的配置需要更改，开发板用的SDRAM是32M的，RTMEDV PDK的SDRAM用的是16M或者8M，
+	所以包括ICF在内的 nonecache区域需要修改，开发板用的是从第30M开始，如果PDK不修改那么nonecache区域的访问会越界
+	同时ICF的链接区域也应该修改。
+
+	2.freeRTOS的HeapC区域设置到Hyperram时会有问题，还未解决
+
+merge code to RTMEDVPDK 问题记录
+	调试环境
+		修改 rt_fct_func.c中的 uint8_t *cn_part = "IOTSRTD-";
+		取消霍尼订制判断 atecc608_commands.c文件中进行了判断。  if serial_num[12] == 0xad (HON specific number) means is honeywell ID.
+		ECC608 provision运行PMT时，使用老的ProjectName.pdb文件，否测向服务器请求设备证书会失败
+		
+	merge to 1062 optin2 log
+		修改了引脚  
+			nodic reset，这个复位引脚使用I2c的IO扩展脚  对应P29-40
+			debug 引脚没有改变
+			UART3 用于 OTA和PMT工具，链接到232的引脚上，这个引脚与bootcfg的引脚共用
+			UART7 用于Nordic 通信，这个引脚需要使用I2c的IO扩展脚
+			ECC608的引脚修改，这个引脚与bootcfg引脚共用
+			
+		修改了SDRAM的配置  SEMC_SDRAMCR0  从F31 --> FB1，需要修改文件如下
+			evkmimxrt1060_sdram_ini_dcd.c
+			evkmimxrt1060_sdram_init.mac
+			buildMachine的 evkmimxrt1060_dcd.bin
+			
+		引入了I2c控制的IO扩展代码，放在了  	 HON_IoT_SDK\Components\hal_bsp\I2c_io_ex
+			在工程中法在了 安全串口对应的组中
+			
+		安全串口中 修改了复位引脚，在串口初始化时初始化 I2c扩招IO，支持使用UART7的串口
+			rt_secure_serial_task.c
+			rt_secure_serial_uart.c
+			
+		修改了ECC608的I2c配置
+			hal_rt_i2c
+			
+		在各个工程中加入宏
+			<state>USE_RTMEDVS_OP2=1</state>
+            <state>USE_RTMEDVS_OP1=0</state>
+			
+		修改了flash的下载算法 .board文件   默认的 $TOOLKIT_DIR$\config\flashloader\NXP\FlashIMXRT1060_EVK_FlexSPI.board
+			<?xml version="1.0" encoding="UTF-8"?>
+			<flash_board>
+				<pass>
+					<loader>$TOOLKIT_DIR$\config\flashloader\NXP\FlashIMXRT1060_FlexSPI1.flash</loader>
+					<range>CODE 0x60000000 0x6fffffff</range>
+					<args>--Opt1
+			0x00010000</args>
+				</pass>
+			</flash_board>
+			
+		flashLoader代码修改
+			Flexspi_nor_flash.c 
+			status_t flexspi_nor_flash_init(uint32_t instance, flexspi_nor_config_t *config)
+			这个函数里，开始位置加 config->memConfig.controllerMiscOption |= FLEXSPI_BITMASK(kFlexSpiMiscOffset_SecondPinMux);
+			
+		l2不需要修改～	
+
+		mfgtools配置
+			<LIST name="MXRT106x-DevBootSerialFlashNonXiP_ITCM_SDRAM_FLASHLOADER_Factory" desc="Manufacturing with Flashloader">
+			<!-- Stage 1, load and execute Flashloader -->
+			   <!-- Stage 1, load and execute Flashloader -->
+			   <CMD state="BootStrap" type="boot" body="BootStrap" file="flash_Loader.imx" > Loading Flashloader. </CMD>
+			   <CMD state="BootStrap" type="jump" onError = "ignore"> Jumping to Flashloader. </CMD>
+
+			   <!-- Stage 2, Program boot image into external memory using Flashloader -->
+			   <CMD state="Blhost" type="blhost" body="get-property 1" > Get Property 1. </CMD> <!--Used to test if flashloader runs successfully-->
+
+			   <!-- <CMD state="Blhost" type="blhost" timeout="900000" body="receive-sb-file \"Profiles\\MXRT106X\\OS Firmware\\hab_efuse.sb\"" > Program efuse </CMD> -->
+			   <CMD state="Blhost" type="blhost" timeout="900000" body="receive-sb-file \"Profiles\\MXRT106X\\OS Firmware\\factory_image.sb\"" > Program image </CMD>
+			   <CMD state="Blhost" type="blhost" timeout="900000" body="receive-sb-file \"Profiles\\MXRT106X\\OS Firmware\\factory_config.sb\"" > Program config </CMD>
+			   <CMD state="Blhost" type="blhost" body="Update Completed!">Done</CMD>
+			</LIST>
+			
+	merge to 1062 optin1 log
+		appkicker在ram中运行  appkicker中需要初始化hyperram
+		otademo需要在hyperram中运行
+		
+		注意：option2的加密xip引脚与I2c是共用引脚，但是option1的加密xip配置引脚上没有上拉，所以option1的 s6_pin1拨码需要调整到on
+		
+	
+	
+		
+	引脚链接总结
+		PDK的option2上：
+			uart1  debug
+			uart2  bm28
+			uart3  接232   在rt_rtc_uart.c中初始化   并且这个串口与boot意见共用，上电前不要接串口模块
+			uart7  485     
+			
+			SN74LVC2G53DCTR-pin5	
+			L						UART7_RX_CM_PORT
+			H						UART7_RX_RS485
+			
+			
+		EVK														PDK op2															PDK  op1
+		GPIO_AD_B1_08/GPIO1_IO24   ????
+		GPIO_B1_14/GPIO2_IO30/SD0_VSELECT    ?????
+		GPIO_AD_B0_09/GPIO1_IO09/Nordic rest					GPIO_B0_03/LPSPI4_SCK											使用IO扩展的P00
+		GPIO_AD_B1_03/GPIO1_IO19	?????
+		
+		//debug 
+		IOMUXC_GPIO_AD_B0_12_LPUART1_TX							IOMUXC_GPIO_AD_B0_12_LPUART1_TX									IOMUXC_GPIO_AD_B0_12_LPUART1_TX
+		IOMUXC_GPIO_AD_B0_13_LPUART1_RX							IOMUXC_GPIO_AD_B0_13_LPUART1_RX									IOMUXC_GPIO_AD_B0_13_LPUART1_RX
+		
+		//OTA  PMT
+		IOMUXC_GPIO_AD_B1_04_LPUART3_CTS_B						IOMUXC_GPIO_AD_B1_04_LPUART3_CTS_B	  						
+		IOMUXC_GPIO_AD_B1_05_LPUART3_RTS_B						IOMUXC_GPIO_AD_B1_05_LPUART3_RTS_B   没有引出？？？？			
+		IOMUXC_GPIO_AD_B1_06_LPUART3_TX							GPIO_B0_08/LPUART3_TX		p30_pin3							IOMUXC_GPIO_AD_B1_02_LPUART2_TX
+		IOMUXC_GPIO_AD_B1_07_LPUART3_RX							GPIO_B0_09/LPUART3_RX		p30_pin4							IOMUXC_GPIO_AD_B1_03_LPUART2_RX
+
+		//Nordic
+		IOMUXC_GPIO_AD_B0_03_LPUART6_RX							GPIO_SD_B1_09/LPUART7_RX										GPIO_SD_B1_09/LPUART7_RX
+		IOMUXC_GPIO_AD_B0_02_LPUART6_TX							GPIO_SD_B1_08/LPUART7_TX										GPIO_SD_B1_08/LPUART7_TX
+		
+		//ECC608 
+		IOMUXC_GPIO_AD_B1_00_LPI2C1_SCL							IOMUXC_GPIO_B0_04_LPI2C2_SCL									IOMUXC_GPIO_SD_B1_11_LPI2C2_SCL
+		IOMUXC_GPIO_AD_B1_01_LPI2C1_SDA							IOMUXC_GPIO_B0_05_LPI2C2_SDA									IOMUXC_GPIO_SD_B1_10_LPI2C2_SDA
+
+		//BM28????
+		IOMUXC_GPIO_AD_B1_08_GPIO1_IO24
+		IOMUXC_GPIO_B1_12_GPIO2_IO28
+		IOMUXC_GPIO_B1_14_GPIO2_IO30
+		IOMUXC_GPIO_SD_B0_00_USDHC1_CMD
+		IOMUXC_GPIO_SD_B0_01_USDHC1_CLK
+		IOMUXC_GPIO_SD_B0_02_USDHC1_DATA0
+		IOMUXC_GPIO_SD_B0_03_USDHC1_DATA1
+		IOMUXC_GPIO_SD_B0_04_USDHC1_DATA2
+		IOMUXC_GPIO_SD_B0_05_USDHC1_DATA3
+		
+
+		
+硬件问题点
+	1.uart引出不容易
+	2.uart硬件流控没有
+	3.232的uart与bootcf共用
+	4.电源处最好加一个按钮负责断电，避免反复插拔
+	5.
+
+
+elftosb.exe -f kinetis -V -c  factory_image.bd -o factory_image.sb fcb_qspiflash.bin l2_nopadding.imx app_kicker_nopadding.imx app_kicker_nopadding.imx hybird_app_signed.bin hybird_fct_signed.bin
+		

@@ -1,0 +1,163 @@
+1. Main L2 bootloader features:
+
+- stored in FlexSPI NOR flash
+- started by Boot ROM code (L1 bootloader)
+- executed in place (XIP)
+- verifies application image using HAB ROM API
+- loads application image to its target location (e.g. OCRAM)
+- supports primary and secondary images
+- monitors running application via watchdog and can fall back to secondary application or Serial Downloader
+- provides API to unify and/or simplify some common application tasks
+
+2. l2提供的API参考bl2_api.h
+The bootloader API provides information about currently loaded application - the partition from which the application has been loaded and if it is loaded from the secondary partition, a reason why it is loaded from secondary partition. It also provides convenient methods to refresh watchdog, maintain the restart counter and reset the boot state machine.
+这些API被放在  #pragma call_graph_root="BL2_API" 段中，如:
+#if defined(__ICCARM__)
+#pragma call_graph_root="BL2_API"
+#endif
+static bl2_fallback_reason_t get_fallback_reason_impl(void)
+{
+    if (!get_persistent_secondary_image())
+    {
+        return BL2FR_NO_FALLBACK;
+    }
+    else if (get_persistent_fallback_boot())
+    {
+        return BL2FR_PRIMARY_UNSTABLE;
+    }
+        
+    return BL2FR_PRIMARY_INVALID;
+}
+
+3. APP image的格式
+L2 can load only application images in the NXP image format for i.MX RT. This is the same format as is required by the Boot ROM.
+The i.MX RT application image consist of the following regions:
+
+||
+|---|
+| Unspecified-data |
+| Initial load region (IVT, Boot Data, DCD) |
+| Application code (extracted from ELF files) |
+| CSF (commands, certificates, signatures) |
+||
+
+4. 固件加密
+存储在外部flash的L2以及APP（Appkecker）使用设备唯一的OTPMK进行加密，使用BEE外设进行解密运行
+要通过BootROM配置flash解密，必须将PRDB块写入flash的开头，并对数据（L2以及L2使用的主映像和辅助映像）进行加密，然后再将其存储到闪存中。
+这两个操作都可以在存储器编程期间由Flashloader（honeywell的flashloader）执行。 
+DB文件示例“ tools \ dev \ bd-files \ program-image-db-file.template”显示了如何指示Flashloader编写PRDB并存储加密的图像。
+
+efuse 0x450：			efuse 0x460[13:12] 本工程设置为2
+	BOOT_CFG1[1] 			BEE_KEY0_SEL（AES key selection forBEE_KEY0）
+	EncryptedXIP			00 - From register
+	0 - Disabled			01 - GP4[127:0]
+	1 - Enabled				10 - SNVS master key
+							11 - From SW-GP2
+
+注意：	当处理器的HAB处于打开时，一个测试key会替代OTPMK中的密钥进行加密。
+		因此当在HAB处于Open时，通过flashloader对固件进行加密时是不能解密HABclosed时的固件的。
+		
+A tool `create-imxrt-image` provided with L2 can be used to sign Flashloader.
+
+5.工具
+L2的工具被分成两类：
+Production tools：
+	create-imxrt-image：生成singed并且formatted的镜像，通过ELF或者SREC格式的binary文件。
+	create-bd-file-from-srk-fuse：生成一个bd文件，该文件从NXP工具srktool创建的SRK密钥哈希文件作为elftosb工具的输入。
+Development tools：仅用于L2和应用程序开发和测试。 不适用于生产固件构建过程或工厂映像刷新。
+
+
+| Tool      | Type | Description |
+|--------------------|---------------|---------------|
+| create-imxrt-image | Prod  | Create a signed i.MX RT image from ELF or SREC binary. Used to format and sign, L2 and application images loaded by L2 or Flashloader. |
+| create-bd-file-from-srk-fuse | Prod  | Create a bd file with commands to burn SRK hash into the i.MX-RT eFUSES from a SRK fuse binary file created by the NXP's srktool. |
+| create-efuse-burning-sb | Dev | Create secure binary burn-efuses.sb file using values in the text file burn-efuses-qa-keys.bd. This file contains efuses values used for L2 testing. |
+| burn-fuses | Dev  | Burn efuses using the secure binary file burn-efuses.sb |
+| create-flash-binary | Dev | Create a memory image from the following inputs: an FCB file, an L2 image and a primary and a secondary application images. |
+| create-flash-binary-from-app-elf  | Dev | Create memory image from from an input (only primary) or two input (primary and secondary) application ELF or SREC file(s). The script can use pre-built and QA signed L2 image and FCB file. |
+| program-flash-usb | Dev | Program device flash memory over USB with an input secure binary file. |
+| program-memory-image | Dev | Program memory-image.sb file to flash memory over USB. |
+
+
+L2 bootloader and the tools expect that the application code (vector table) starts at the following address:
+| Memory | .text region start address |
+|--------|-----------------------------|
+| FlexSPI NOR, primary | 0x6002_1000 |
+| FlexSPI NOR, secondary | 0x6004_1000 |
+| ITCM | 0x0000_1400 |
+| DTCM | 0x2000_1000 |
+| OCRAM | 0x2020_9000 |
+| SDRAM | 0x8000_1000 |
+
+App image的大小不能大于128Kb？
+
+选定的开发工具通过连接到板上OTG USB端口的USB与i.MX RT进行通信。 
+他们首先下载并运行Flashloader应用程序，然后使用它对图像进行编程。 
+他们需要了解目标处理器系列，才能使用适当的Flashloader二进制文件，
+因此它们接受处理器类型作为参数：i.MX RT 1050系列为1052，i.MX RT 1060系列为1062。
+
+6. 镜像签名
+生产工具“ create-imxrt-image”和开发工具“ create-flash-binary-from-app-elf”可以生成签名的i.MX RT image。
+签名是通过带有Sign Server Engine的恩智浦代码签名工具（CST）完成的。在相应的配置文件中配置密钥。
+
+为了进行开发和测试，请使用NXP CST存储库中的QA签名密钥（请参阅“工具安装”部分）。这些密钥有两种类型-远程和本地。
+
+远程签名密钥需要访问Honeywell签名服务，因此无法“离线”进行签名。
+索引为0的NXP CST QA密钥（相关证书QAtestkey0.pem）是远程密钥。
+要将密钥与create-imxrt-image工具一起使用，
+请使用提供的`create-imxrt-image-example-qa-remote.config`配置文件示例作为该工具的配置文件。
+
+本地密钥仅在质量检查环境中使用，并且允许您“脱机”对图像进行签名-无需访问霍尼韦尔签名服务。 
+索引为1到3的NXP CST QA密钥是直接存储在NXP CST存储库中的本地密钥。 要将本地密钥与create-imxrt-image工具一起使用，
+请使用提供的`create-imxrt-image-example-qa-local.config`配置文件示例作为该工具的配置文件。
+
+注意：恩智浦HAB（高度保证启动）Rom API要求L2和经L2验证的图像（AppKicker）均由同一超级根密钥签名。
+ 如果用于签署AppKicker的SRK密钥不同于用于签署L2的SRK密钥，则AppKicker验证将失败。 这意味着SRK密钥吊销必须包括L2更新。
+
+7.镜像签名的详细说明
+“ create-imx-image”调用“ elftosb”，然后调用“ NXP的代码签名工具” cst。 “ elftosb”和“ cst”工具存储在存储库文件夹“ third_party \ nxp_tools_win”中。引擎及其所需的所有库都位于“ third_party \ nxp_tools_win \ openssl-engine”目录中。全部针对Windows（MinGW64）进行编译。
+
+这是`create-imx-image`和`cst`处理图像签名的方式：
+根据您提供给`create-imx-image`的配置文件，该工具创建一个bd文件和OpenSSL配置文件。 
+OpenSSL配置文件包含从create-imx-image配置文件的“ SigningCertificate”字段获取的演唱证书的路径。
+
+例如，这可以是nxp-cst存储库“ ../../../../nxp-cst/crts/SRK1_QAtestkey0.pem”的相对路径。
+当`cst`对图像进行签名时，它将尝试在与`crts`目录相同级别的`keys`目录中自动查找密钥。
+因此，在我们的示例中，这是`../../../../ nxp-cst / keys`。
+在该目录中，它将查找一个文件名相同的文件，但将“ crt”一词替换为“ key”（请注意，我们的示例文件名不包含“ crt”）。
+如果找不到该密钥，则假定它是“远程”密钥，并且它与Sign Server联系以请求对密钥进行签名。
+
+现在，假设创建imx图像配置文件字段“ SigningCertificate”设置为“ ../../../../nxp-cst/crts/SRK2_sha256_2048_65537_v3_usr_crt.pem”。
+在这种情况下，存在文件“ ../../../../nxp-cst/crts/SRK2_sha256_2048_65537_v3_usr_key.pem”，因此“ cst”将使用密钥并“在本地”对固件进行签名。
+
+
+8. Production Signing Keys
+
+a. Import Honeywell PKI Root and Intermediate CA：
+	You can add the PKI Root for QA (HoneywellQAProductPKI.crt) and for Production (HoneywellProductPKI.crt) in the store.
+
+b. Obtain a Fixture Certificate for your Windows build machine
+
+c. If you need a new set of firmware signing keys 
+   (called Super Root Keys (SRKs) in the context of NXP CST).
+   Otherwise, some existing firmware signing keys can be used.
+   
+d. Store the signing-keys certificates (SRK certificates) and generate SRK table and eFUSE hash as described in the NXP-CST readme file:
+    https://bitbucket.honeywell.com/projects/PS/repos/nxp-cst/
+	
+e. Update `create-imx-image` configuration file sections *CodeSigningTool* and *SigningService* with the production values. 
+
+f. Prepare eFuse burning db file using the `create-bd-file-from-srk-fuse` production tool from this repository.
+   
+g. Follow the i.MX RT platform instruction on eFuse burning (Work in Progress).
+
+
+
+
+
+
+
+
+
+
+
